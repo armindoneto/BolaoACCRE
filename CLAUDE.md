@@ -159,7 +159,7 @@ Públicas (sem login):
 - `/`: **classificação** da edição atual, com abas 1º turno / 2º turno (abre no turno em andamento). Mostra posição, participante, apelido do palpite, pontos e os 10 escudos escolhidos. Busca pelo nome. Posições empatadas aparecem iguais, em ranking denso (ex.: 1º, 2º, 2º, 3º). Os premiados (1º, 2º, 3º e último) ficam em destaque. Se o turno estiver pendente por jogo adiado, um aviso aparece no topo.
 - `/participante/[id]`: palpites do participante, pontuação por time e evolução por rodada.
 - `/times`: pontuação de cada time da edição, organizada por nível, com o detalhamento (vitórias, empates, goleadas, fora de casa, bônus de fim de turno).
-- `/campeonato`: tabela do turno (e geral) e resultados por rodada.
+- `/campeonato`: tabela do turno e resultados por rodada.
 - `/regras`: as regras da edição, geradas a partir do JSON em linguagem simples.
 - `/historico` e `/historico/[edicao]`: edições anteriores, com os premiados de cada turno (1º, 2º, 3º e último) e a classificação final de cada turno.
 - `/palpite`: formulário de palpite (só quando a edição está `open_for_entries`).
