@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Mantém a sessão de quem tem conta renovada. Sem Supabase configurado, não faz nada. */
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   let response = NextResponse.next({ request });
   if (!url || !key) return response;
   // Só há o que renovar para quem já tem cookie de sessão.

@@ -8,6 +8,11 @@ import { newToken, normalizeName, teamCodeFromName } from "./util";
 /** Schema do Postgres onde ficam as tabelas do bolão (veja a migration). */
 const DB_SCHEMA = process.env.SUPABASE_DB_SCHEMA || "bolao";
 
+/** Chave secreta do servidor: aceita o nome novo (secret) e o antigo (service_role). */
+export function serviceKey(): string | undefined {
+  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 let client: SupabaseClient<any, any, any> | null = null;
 
 /**
@@ -18,7 +23,7 @@ let client: SupabaseClient<any, any, any> | null = null;
 function db(): SupabaseClient<any, any, any> {
   if (!client) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const key = serviceKey();
     if (!url || !key) throw new Error("Supabase não configurado (veja .env.example)");
     client = createClient(url, key, {
       db: { schema: DB_SCHEMA },

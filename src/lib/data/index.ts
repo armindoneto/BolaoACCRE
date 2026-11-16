@@ -1,14 +1,14 @@
 import { cache } from "react";
 import { computeEdition, type EngineResult, type PeriodResult } from "@/lib/scoring";
 import { memoryRepo } from "./memory";
-import { supabaseRepo } from "./supabase";
+import { serviceKey, supabaseRepo } from "./supabase";
 import type { Edition, EditionBundle, Repo } from "./types";
 
 export * from "./types";
 
 /** Sem Supabase configurado, o site roda em modo demonstração (dados fictícios em memória). */
 export function isDemoMode(): boolean {
-  return !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return !process.env.NEXT_PUBLIC_SUPABASE_URL || !serviceKey();
 }
 
 export function repo(): Repo {
