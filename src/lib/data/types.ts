@@ -101,6 +101,14 @@ export interface EditionPatch {
   manualStandingsOrder?: Record<string, string[]>;
 }
 
+export interface TeamPatch {
+  name: string;
+  shortName: string;
+  code: string;
+  color: string;
+  color2: string;
+}
+
 export interface TokenAccess {
   token: string;
   editionId: string;
@@ -136,6 +144,12 @@ export interface Repo {
   setEditionTiers(editionId: string, tiers: { tier: number; teamNames: string[] }[]): Promise<void>;
   duplicateEdition(editionId: string, name: string, season: number): Promise<string>;
   deleteEdition(editionId: string): Promise<void>;
+
+  /** Altera os dados de um time (vale para todas as edições em que ele aparece). */
+  updateTeam(teamId: string, patch: TeamPatch): Promise<void>;
+  /** Guarda a imagem do escudo (PNG) e devolve o endereço público dela. */
+  setTeamCrest(teamId: string, png: Uint8Array): Promise<string>;
+  removeTeamCrest(teamId: string): Promise<void>;
 
   isAdmin(userId: string): Promise<boolean>;
 }

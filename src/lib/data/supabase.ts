@@ -8,6 +8,9 @@ import { newToken, normalizeName, teamCodeFromName } from "./util";
 /** Schema do Postgres onde ficam as tabelas do bolão (veja a migration). */
 const DB_SCHEMA = process.env.SUPABASE_DB_SCHEMA || "bolao";
 
+/** Depósito (bucket) público do Supabase Storage onde ficam os escudos. */
+const CREST_BUCKET = process.env.SUPABASE_CREST_BUCKET || "bolao-escudos";
+
 /** Chave secreta do servidor: aceita o nome novo (secret) e o antigo (service_role). */
 export function serviceKey(): string | undefined {
   return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -356,6 +359,49 @@ export const supabaseRepo: Repo = {
 
   async deleteEdition(editionId) {
     check(await db().from("editions").delete().eq("id", editionId));
+  },
+
+  async updateTeam(teamId, patch) {
+    check(
+      await db()
+        .from("teams")
+        .update({
+          name: patch.name,
+          short_name: patch.shortName,
+          code: patch.code,
+          color: patch.color,
+          color2: patch.color2,
+        })
+        .eq("id", teamId),
+    );
+  },
+
+  async setTeamCrest(teamId, png) {
+    const storage = db().storage;
+    // Cria o depósito público de escudos no primeiro uso.
+    const existing = await storage.getBucket(CREST_BUCKET);
+    if (existing.error) {
+      const created = await storage.createBucket(CREST_BUCKET, {
+        public: true,
+        fileSizeLimit: 1024 * 1024,
+        allowedMimeTypes: ["image/png"],
+      });
+      if (created.error && !/exist/i.test(created.error.message)) throw new Error(created.error.message);
+    }
+    const path = `${teamId}.png`;
+    const uploaded = await storage
+      .from(CREST_BUCKET)
+      .upload(path, png, { contentType: "image/png", upsert: true, cacheControl: "31536000" });
+    if (uploaded.error) throw new Error(uploaded.error.message);
+    // O "?v=" muda a cada envio, para o navegador não mostrar o escudo antigo.
+    const url = `${storage.from(CREST_BUCKET).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+    check(await db().from("teams").update({ crest_url: url }).eq("id", teamId));
+    return url;
+  },
+
+  async removeTeamCrest(teamId) {
+    check(await db().from("teams").update({ crest_url: null }).eq("id", teamId));
+    await db().storage.from(CREST_BUCKET).remove([`${teamId}.png`]);
   },
 
   async isAdmin(userId) {

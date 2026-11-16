@@ -30,7 +30,7 @@ O bolão usa um schema próprio do Postgres, chamado `bolao`. Assim ele pode div
    insert into bolao.admins (user_id)
    select id from auth.users where email = 'SEU_EMAIL_AQUI';
    ```
-7. Em `/admin`: importe a tabela de jogos (aba **Jogos**), cadastre os palpites (aba **Palpites**) e lance os resultados (aba **Resultados**).
+7. Em `/admin`: importe a tabela de jogos (aba **Jogos**), cadastre os palpites (aba **Palpites**) e lance os resultados (aba **Resultados**). Os escudos são enviados na aba **Times**; as imagens ficam no Supabase Storage, num depósito público chamado `bolao-escudos`, criado sozinho no primeiro envio.
 
 Em projeto compartilhado, as contas de login e o modelo do e-mail de acesso são os mesmos do outro sistema. Quem é administrador do bolão é definido só pela tabela `bolao.admins`.
 

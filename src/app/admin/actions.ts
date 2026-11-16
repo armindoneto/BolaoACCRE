@@ -258,3 +258,64 @@ export async function deleteEdition(editionId: string): Promise<void> {
   refresh();
   redirect("/admin/edicoes");
 }
+
+// ---------- Times e escudos ----------
+
+export interface TeamForm {
+  name: string;
+  shortName: string;
+  code: string;
+  color: string;
+  color2: string;
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+export async function adminUpdateTeam(teamId: string, form: TeamForm): Promise<ActionResult> {
+  await requireAdmin();
+  const name = form.name.trim().replace(/\s+/g, " ");
+  const shortName = form.shortName.trim().replace(/\s+/g, " ") || name;
+  const code = form.code.trim().toUpperCase();
+  if (name.length < 2 || name.length > 60) return { ok: false, error: "Escreva o nome do time." };
+  if (shortName.length > 24) return { ok: false, error: "O nome curto pode ter até 24 letras." };
+  if (!/^[A-Z0-9]{2,4}$/.test(code)) return { ok: false, error: "A sigla deve ter de 2 a 4 letras." };
+  if (!HEX.test(form.color) || !HEX.test(form.color2)) return { ok: false, error: "Cor inválida." };
+  try {
+    await repo().updateTeam(teamId, { name, shortName, code, color: form.color, color2: form.color2 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    if (/duplicate|unique/i.test(message)) return { ok: false, error: "Já existe outro time com esse nome." };
+    return { ok: false, error: "Não foi possível salvar o time." };
+  }
+  refresh();
+  return { ok: true, message: "Time salvo." };
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/** Recebe o escudo já reduzido pelo navegador (PNG pequeno) e guarda. */
+export async function adminUploadCrest(teamId: string, formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const file = formData.get("crest");
+  if (!(file instanceof Blob)) return { ok: false, error: "Nenhuma imagem recebida." };
+  if (file.size > 700 * 1024) return { ok: false, error: "A imagem ficou grande demais. Tente outra." };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!PNG_SIGNATURE.every((b, i) => bytes[i] === b)) return { ok: false, error: "Imagem inválida." };
+  try {
+    await repo().setTeamCrest(teamId, bytes);
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Não foi possível guardar o escudo${e instanceof Error ? `: ${e.message}` : "."}`,
+    };
+  }
+  refresh();
+  return { ok: true, message: "Escudo atualizado." };
+}
+
+export async function adminRemoveCrest(teamId: string): Promise<ActionResult> {
+  await requireAdmin();
+  await repo().removeTeamCrest(teamId);
+  refresh();
+  return { ok: true, message: "Escudo removido." };
+}

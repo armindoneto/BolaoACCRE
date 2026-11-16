@@ -40,6 +40,13 @@ function findEntry(entryId: string): { bundle: EditionBundle; entry: Entry } {
   throw new Error("Palpite não encontrado");
 }
 
+/** O mesmo time aparece copiado em cada edição; devolve todas as cópias. */
+function teamCopies(teamId: string) {
+  const copies = [...store().bundles.values()].flatMap((b) => b.teams.filter((t) => t.id === teamId));
+  if (copies.length === 0) throw new Error("Time não encontrado");
+  return copies;
+}
+
 function tokenFor(participantId: string): string {
   const s = store();
   let token = s.tokens.get(participantId);
@@ -220,6 +227,21 @@ export const memoryRepo: Repo = {
 
   async deleteEdition(editionId) {
     store().bundles.delete(editionId);
+  },
+
+  async updateTeam(teamId, patch) {
+    for (const team of teamCopies(teamId)) Object.assign(team, patch);
+  },
+
+  async setTeamCrest(teamId, png) {
+    // Sem armazenamento de arquivos na demonstração: a imagem vai embutida no próprio endereço.
+    const url = `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
+    for (const team of teamCopies(teamId)) team.crestUrl = url;
+    return url;
+  },
+
+  async removeTeamCrest(teamId) {
+    for (const team of teamCopies(teamId)) team.crestUrl = null;
   },
 
   async isAdmin() {
