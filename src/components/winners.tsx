@@ -2,7 +2,7 @@ import { Trophy } from "lucide-react";
 import { prizeName, type PeriodResult, type PrizePosition } from "@/lib/scoring";
 import type { RankingViewRow } from "@/lib/view";
 import { cn } from "@/lib/cn";
-import { prizeStyle } from "./ranking";
+import { prizeStyle } from "@/lib/prize-style";
 
 /** Bloco "Vencedores do turno": só aparece quando o turno está encerrado. */
 export function Winners({
