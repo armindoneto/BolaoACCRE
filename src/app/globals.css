@@ -1,26 +1,112 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f4f6f4;
+  --card: #ffffff;
+  --fg: #14201a;
+  --muted: #5f6f66;
+  --border: #dfe5e1;
+  --primary: #0f7a4a;
+  --primary-fg: #ffffff;
+  --primary-soft: #e3f3ea;
+  --gold: #f6c343;
+  --gold-soft: #fdf3d2;
+  --silver: #b9c2cc;
+  --silver-soft: #eef1f4;
+  --bronze: #d08a4e;
+  --bronze-soft: #f8e9dc;
+  --last: #7c5cd6;
+  --last-soft: #ece7fb;
+  --warn: #9a5b00;
+  --warn-soft: #fff1d6;
+  --danger: #c0392b;
+}
+
+.dark {
+  --bg: #0d1411;
+  --card: #16201b;
+  --fg: #e8efea;
+  --muted: #94a59b;
+  --border: #26342c;
+  --primary: #37c583;
+  --primary-fg: #06150d;
+  --primary-soft: #14301f;
+  --gold-soft: #3a3010;
+  --silver-soft: #262d33;
+  --bronze-soft: #38261a;
+  --last: #a892f0;
+  --last-soft: #2a2247;
+  --warn: #f2b84b;
+  --warn-soft: #3a2c0e;
+  --danger: #ef6b5c;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-silver: var(--silver);
+  --color-silver-soft: var(--silver-soft);
+  --color-bronze: var(--bronze);
+  --color-bronze-soft: var(--bronze-soft);
+  --color-last: var(--last);
+  --color-last-soft: var(--last-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-card;
+  }
+  .btn {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 bg-primary text-primary-fg hover:brightness-110;
+  }
+  .btn-outline {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 border border-border bg-card text-fg hover:bg-primary-soft;
+  }
+  .btn-danger {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 border border-danger/40 bg-card text-danger hover:bg-danger/10;
+  }
+  .input {
+    @apply min-h-11 w-full rounded-xl border border-border bg-card px-3 text-base text-fg outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/25;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-fg;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
 }
