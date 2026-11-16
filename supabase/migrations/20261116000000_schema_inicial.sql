@@ -1,8 +1,13 @@
 -- Bolão ACC-RE: schema inicial
+--
+-- Tudo fica no schema "bolao", separado do schema "public", para o bolão poder
+-- dividir um projeto Supabase com outro sistema sem misturar tabelas.
+-- Depois de rodar, exponha o schema na API:
+--   Project Settings > Data API > Exposed schemas > adicionar "bolao".
 
-create extension if not exists pgcrypto;
+create schema if not exists bolao;
 
-create table public.competitions (
+create table bolao.competitions (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   -- critérios de desempate da tabela do campeonato, em ordem
@@ -10,7 +15,7 @@ create table public.competitions (
     default '["points","wins","goal_difference","goals_for","head_to_head"]'::jsonb
 );
 
-create table public.teams (
+create table bolao.teams (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   short_name text not null,
@@ -20,9 +25,9 @@ create table public.teams (
   color2 text not null default '#FFFFFF'
 );
 
-create table public.editions (
+create table bolao.editions (
   id uuid primary key default gen_random_uuid(),
-  competition_id uuid not null references public.competitions (id),
+  competition_id uuid not null references bolao.competitions (id),
   season int not null,
   name text not null,
   status text not null default 'draft'
@@ -35,40 +40,40 @@ create table public.editions (
   created_at timestamptz not null default now()
 );
 
-create table public.edition_teams (
-  edition_id uuid not null references public.editions (id) on delete cascade,
-  team_id uuid not null references public.teams (id),
+create table bolao.edition_teams (
+  edition_id uuid not null references bolao.editions (id) on delete cascade,
+  team_id uuid not null references bolao.teams (id),
   tier int not null check (tier > 0),
   primary key (edition_id, team_id)
 );
 
-create table public.matches (
+create table bolao.matches (
   id uuid primary key default gen_random_uuid(),
-  edition_id uuid not null references public.editions (id) on delete cascade,
+  edition_id uuid not null references bolao.editions (id) on delete cascade,
   round int not null check (round > 0),
   date timestamptz,
-  home_team_id uuid not null references public.teams (id),
-  away_team_id uuid not null references public.teams (id),
+  home_team_id uuid not null references bolao.teams (id),
+  away_team_id uuid not null references bolao.teams (id),
   home_goals int check (home_goals >= 0),
   away_goals int check (away_goals >= 0),
   check (home_team_id <> away_team_id),
   check ((home_goals is null) = (away_goals is null))
 );
-create index matches_edition_round_idx on public.matches (edition_id, round);
+create index matches_edition_round_idx on bolao.matches (edition_id, round);
 
-create table public.participants (
+create table bolao.participants (
   id uuid primary key default gen_random_uuid(),
   display_name text not null,
   user_id uuid references auth.users (id) on delete set null,
   contact text,
   created_at timestamptz not null default now()
 );
-create index participants_user_idx on public.participants (user_id);
+create index participants_user_idx on bolao.participants (user_id);
 
-create table public.entries (
+create table bolao.entries (
   id uuid primary key default gen_random_uuid(),
-  edition_id uuid not null references public.editions (id) on delete cascade,
-  participant_id uuid not null references public.participants (id) on delete cascade,
+  edition_id uuid not null references bolao.editions (id) on delete cascade,
+  participant_id uuid not null references bolao.participants (id) on delete cascade,
   nickname text,
   -- ids dos times ordenados por nível, unidos por "|": palpites idênticos têm a mesma chave
   selection_key text not null,
@@ -76,18 +81,18 @@ create table public.entries (
   access_token text not null,
   created_at timestamptz not null default now()
 );
-create index entries_edition_key_idx on public.entries (edition_id, selection_key);
-create index entries_token_idx on public.entries (access_token);
-create index entries_participant_idx on public.entries (participant_id);
+create index entries_edition_key_idx on bolao.entries (edition_id, selection_key);
+create index entries_token_idx on bolao.entries (access_token);
+create index entries_participant_idx on bolao.entries (participant_id);
 
-create table public.entry_picks (
-  entry_id uuid not null references public.entries (id) on delete cascade,
+create table bolao.entry_picks (
+  entry_id uuid not null references bolao.entries (id) on delete cascade,
   tier int not null,
-  team_id uuid not null references public.teams (id),
+  team_id uuid not null references bolao.teams (id),
   primary key (entry_id, tier)
 );
 
-create table public.admins (
+create table bolao.admins (
   user_id uuid primary key references auth.users (id) on delete cascade
 );
 
@@ -101,39 +106,50 @@ create table public.admins (
 -- Escrita direta: só administradores.
 -- ---------------------------------------------------------------------------
 
-create or replace function public.is_admin()
+create or replace function bolao.is_admin()
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = bolao
 as $$
-  select exists (select 1 from public.admins where user_id = auth.uid());
+  select exists (select 1 from bolao.admins where user_id = auth.uid());
 $$;
 
-alter table public.competitions enable row level security;
-alter table public.teams enable row level security;
-alter table public.editions enable row level security;
-alter table public.edition_teams enable row level security;
-alter table public.matches enable row level security;
-alter table public.participants enable row level security;
-alter table public.entries enable row level security;
-alter table public.entry_picks enable row level security;
-alter table public.admins enable row level security;
+alter table bolao.competitions enable row level security;
+alter table bolao.teams enable row level security;
+alter table bolao.editions enable row level security;
+alter table bolao.edition_teams enable row level security;
+alter table bolao.matches enable row level security;
+alter table bolao.participants enable row level security;
+alter table bolao.entries enable row level security;
+alter table bolao.entry_picks enable row level security;
+alter table bolao.admins enable row level security;
 
-create policy "leitura publica" on public.competitions for select using (true);
-create policy "leitura publica" on public.teams for select using (true);
-create policy "leitura publica" on public.editions for select using (status <> 'draft' or public.is_admin());
-create policy "leitura publica" on public.edition_teams for select using (true);
-create policy "leitura publica" on public.matches for select using (true);
+create policy "leitura publica" on bolao.competitions for select using (true);
+create policy "leitura publica" on bolao.teams for select using (true);
+create policy "leitura publica" on bolao.editions for select using (status <> 'draft' or bolao.is_admin());
+create policy "leitura publica" on bolao.edition_teams for select using (true);
+create policy "leitura publica" on bolao.matches for select using (true);
 
-create policy "admin escreve" on public.competitions for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.teams for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.editions for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.edition_teams for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.matches for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.participants for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.entries for all using (public.is_admin()) with check (public.is_admin());
-create policy "admin escreve" on public.entry_picks for all using (public.is_admin()) with check (public.is_admin());
+create policy "admin escreve" on bolao.competitions for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.teams for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.editions for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.edition_teams for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.matches for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.participants for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.entries for all using (bolao.is_admin()) with check (bolao.is_admin());
+create policy "admin escreve" on bolao.entry_picks for all using (bolao.is_admin()) with check (bolao.is_admin());
 
-create policy "ve o proprio registro" on public.admins for select using (user_id = auth.uid());
+create policy "ve o proprio registro" on bolao.admins for select using (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- Permissões do schema (um schema novo não vem liberado para a API).
+-- O RLS acima continua decidindo quais linhas cada papel enxerga ou altera.
+-- ---------------------------------------------------------------------------
+
+grant usage on schema bolao to anon, authenticated, service_role;
+grant all on all tables in schema bolao to service_role;
+grant select on all tables in schema bolao to anon;
+grant select, insert, update, delete on all tables in schema bolao to authenticated;
+grant execute on function bolao.is_admin() to anon, authenticated, service_role;

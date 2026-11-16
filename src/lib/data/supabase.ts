@@ -5,19 +5,25 @@ import { newToken, normalizeName, teamCodeFromName } from "./util";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-let client: SupabaseClient | null = null;
+/** Schema do Postgres onde ficam as tabelas do bolão (veja a migration). */
+const DB_SCHEMA = process.env.SUPABASE_DB_SCHEMA || "bolao";
+
+let client: SupabaseClient<any, any, any> | null = null;
 
 /**
  * Cliente com a chave de serviço: só roda no servidor e ignora o RLS.
  * Toda rota que chama este repositório faz a própria checagem de permissão
  * (admin logado, token do link pessoal ou prazo de palpites).
  */
-function db(): SupabaseClient {
+function db(): SupabaseClient<any, any, any> {
   if (!client) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) throw new Error("Supabase não configurado (veja .env.example)");
-    client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    client = createClient(url, key, {
+      db: { schema: DB_SCHEMA },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
   }
   return client;
 }

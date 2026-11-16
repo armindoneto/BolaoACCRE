@@ -1,9 +1,9 @@
 -- Seed: Brasileirão 2026 (times, níveis e regras). Pode rodar mais de uma vez.
 
-insert into public.competitions (name) values ('Brasileirão Série A')
+insert into bolao.competitions (name) values ('Brasileirão Série A')
 on conflict (name) do nothing;
 
-insert into public.teams (name, short_name, code, color, color2) values
+insert into bolao.teams (name, short_name, code, color, color2) values
   ('Flamengo', 'Flamengo', 'FLA', '#C8102E', '#111111'),
   ('Palmeiras', 'Palmeiras', 'PAL', '#006437', '#FFFFFF'),
   ('Cruzeiro', 'Cruzeiro', 'CRU', '#0A3A8C', '#FFFFFF'),
@@ -26,7 +26,7 @@ insert into public.teams (name, short_name, code, color, color2) values
   ('Remo', 'Remo', 'REM', '#0B1F4B', '#FFFFFF')
 on conflict (name) do nothing;
 
-insert into public.editions (competition_id, season, name, status, rules)
+insert into bolao.editions (competition_id, season, name, status, rules)
 select c.id, 2026, 'Brasileirão 2026', 'running', $rules$
 {
   "periods": [
@@ -156,11 +156,11 @@ select c.id, 2026, 'Brasileirão 2026', 'running', $rules$
   }
 }
 $rules$::jsonb
-from public.competitions c
+from bolao.competitions c
 where c.name = 'Brasileirão Série A'
-  and not exists (select 1 from public.editions e where e.season = 2026 and e.name = 'Brasileirão 2026');
+  and not exists (select 1 from bolao.editions e where e.season = 2026 and e.name = 'Brasileirão 2026');
 
-insert into public.edition_teams (edition_id, team_id, tier)
+insert into bolao.edition_teams (edition_id, team_id, tier)
 select e.id, t.id, v.tier
 from (values
   ('Flamengo', 1),
@@ -184,10 +184,10 @@ from (values
   ('Chapecoense', 10),
   ('Remo', 10)
 ) as v (name, tier)
-join public.teams t on t.name = v.name
-join public.editions e on e.season = 2026 and e.name = 'Brasileirão 2026'
+join bolao.teams t on t.name = v.name
+join bolao.editions e on e.season = 2026 and e.name = 'Brasileirão 2026'
 on conflict (edition_id, team_id) do nothing;
 
 -- Depois de criar sua conta no site (/entrar), torne-se administrador:
---   insert into public.admins (user_id)
+--   insert into bolao.admins (user_id)
 --   select id from auth.users where email = 'SEU_EMAIL_AQUI';
