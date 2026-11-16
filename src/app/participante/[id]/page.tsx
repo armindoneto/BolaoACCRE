@@ -28,7 +28,7 @@ export default async function ParticipantePage({
   const period = selectPeriod(result.periods, (await searchParams).turno, currentPeriod(result));
   const teams = teamMap(bundle);
   const tiers = tiersOf(bundle);
-  const [first, last] = period.period.rounds;
+  const [first] = period.period.rounds;
   const lastRound = Math.max(period.lastRoundWithResult, first - 1);
   const rounds = Array.from({ length: Math.max(lastRound - first + 1, 0) }, (_, i) => first + i);
 
