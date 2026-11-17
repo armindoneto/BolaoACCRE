@@ -12,8 +12,8 @@ Idioma da interface: português (pt-BR). Os números usam vírgula decimal (ex.:
 
 - Cada **edição** (bolão) está ligada a um campeonato e a uma temporada. Exemplo: Brasileirão 2026.
 - Os times da edição são divididos em **níveis**. No formato atual são 10 níveis, com 2 times em cada um.
-- Um **palpite** é a escolha de 1 time por nível. Ele não muda até o fim do campeonato.
-- Um participante pode fazer **mais de um palpite**.
+- Um **palpite** é a escolha de 1 time por nível, com um nome próprio. Ele não muda até o fim do campeonato.
+- Um **participante** é uma pessoa cadastrada pelo administrador (só o nome). Um participante pode ter **mais de um palpite** (ex.: "Fulano 1", "Fulano 2").
 - A pontuação de um palpite é a **soma das pontuações dos times escolhidos**.
 - A edição tem **duas etapas independentes, cada uma com premiação própria**: 1º turno (rodadas 1–19) e 2º turno (rodadas 20–38). Os palpites são os mesmos nas duas.
 - **Ao fim do 1º turno, tudo zera**: a classificação do bolão *e* a tabela do campeonato usada nas regras. O 2º turno é calculado só com os jogos das rodadas 20–38, como se fosse um campeonato novo.
@@ -140,44 +140,53 @@ O recálculo é feito **sempre que o admin salva um resultado**. Recalcular a ed
 ## Modelo de dados (Supabase)
 
 - `competitions`: id, nome (ex.: "Brasileirão Série A"), critérios de desempate da tabela
-- `teams`: id, nome, nome curto, escudo (url)
+- `teams`: id, nome, nome curto, sigla, cores, escudo (url; as imagens ficam no Supabase Storage)
 - `editions`: id, competition_id, temporada, nome, status (`draft` | `open_for_entries` | `running` | `finished`), `rules` (jsonb), prazo de palpites, prêmios (texto livre)
 - `edition_teams`: edition_id, team_id, tier (nível)
 - `matches`: id, edition_id, rodada, data, mandante_id, visitante_id, gols_mandante, gols_visitante (nulos até o resultado)
-- `participants`: id, nome de exibição, user_id (opcional, ligado ao Supabase Auth), contato opcional
-- `entries` (palpites): id, edition_id, participant_id, apelido opcional do palpite, `selection_key` (chave canônica para achar palpites repetidos), token de acesso (para quem não tem conta), criado em
+- `participants`: id, nome de exibição, contato opcional (`user_id` existe, mas não é usado enquanto os participantes não têm conta)
+- `entries` (palpites): id, edition_id, `name` (nome do palpite), participant_id (nulo até o admin atribuir), `selection_key` (chave canônica para achar palpites repetidos), token do link de edição, criado em
 - `entry_picks`: entry_id, tier, team_id
 - `admins`: user_id
 
 A `selection_key` é a lista de team_ids escolhidos, ordenada por nível e unida em texto. Palpites idênticos têm a mesma chave.
+
+Todas as tabelas ficam no schema `bolao` do Postgres (não no `public`), porque o projeto Supabase é dividido com outro sistema.
 
 ---
 
 ## Páginas
 
 Públicas (sem login):
-- `/`: **classificação** da edição atual, com abas 1º turno / 2º turno (abre no turno em andamento). Mostra posição, participante, apelido do palpite, pontos e os 10 escudos escolhidos. Busca pelo nome. Posições empatadas aparecem iguais, em ranking denso (ex.: 1º, 2º, 2º, 3º). Os premiados (1º, 2º, 3º e último) ficam em destaque. Se o turno estiver pendente por jogo adiado, um aviso aparece no topo.
-- `/participante/[id]`: palpites do participante, pontuação por time e evolução por rodada.
+- `/`: **classificação** da edição atual, com abas 1º turno / 2º turno (abre no turno em andamento). Mostra posição, nome do palpite, participante, pontos e os 10 escudos escolhidos. Busca pelo nome. Posições empatadas aparecem iguais, em ranking denso (ex.: 1º, 2º, 2º, 3º). Os premiados (1º, 2º, 3º e último) ficam em destaque. Se o turno estiver pendente por jogo adiado, um aviso aparece no topo.
+- `/participantes`: lista, em ordem alfabética, dos participantes que têm palpite na edição em vigor; cada um com os nomes dos seus palpites embaixo e link para o perfil.
+- `/participante/[id]`: perfil do participante, com os palpites da edição atual (pontuação por time e por rodada), o histórico nas edições anteriores e os troféus (ouro, prata, bronze e vermelho, com o número de vezes que ganhou cada prêmio).
 - `/times`: pontuação de cada time da edição, organizada por nível, com o detalhamento (vitórias, empates, goleadas, fora de casa, bônus de fim de turno).
 - `/campeonato`: tabela do turno e resultados por rodada.
 - `/regras`: as regras da edição, geradas a partir do JSON em linguagem simples.
 - `/historico` e `/historico/[edicao]`: edições anteriores, com os premiados de cada turno (1º, 2º, 3º e último) e a classificação final de cada turno.
 - `/palpite`: formulário de palpite (só quando a edição está `open_for_entries`).
+- `/meu/[token]`: página de um palpite, aberta pelo link de edição entregue no envio.
 
 Admin (`/admin`, exige login de admin):
 - **Lançar resultados**: lista de jogos por rodada com dois campos de placar em cada, salvando de uma vez e com o recálculo automático. Precisa ser rápido de usar no celular.
 - **Edições**: criar e editar edição, níveis e times, e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras.
 - **Jogos**: cadastrar a tabela da temporada (importação por CSV).
-- **Palpites**: ver, criar em nome de um participante, editar ou excluir. Exportar a classificação em PDF ou imagem para mandar no WhatsApp.
+- **Palpites**: revisar os palpites que chegam (ajustar o nome e atribuir a um participante), criar, editar ou excluir. Exportar a classificação em PDF ou imagem para mandar no WhatsApp.
+- **Participantes**: cadastrar (só o nome), renomear e excluir participantes.
+- **Times**: editar os dados de cada time e enviar o escudo.
 
 ---
 
-## Participantes com ou sem conta
+## Participantes e palpites
 
-Muitos participantes são leigos digitalmente. **Nenhuma ação pública pode exigir conta.**
+Muitos participantes são leigos digitalmente. **Nenhuma ação pública exige conta, e os participantes não têm conta** (decisão do administrador para esta primeira fase; o login existe só para o admin).
 
-- **Sem conta:** no `/palpite`, a pessoa informa só o nome e escolhe os times. Ao enviar, recebe um **link pessoal** (`/meu/[token]`) para ver e editar os palpites até o prazo, com um botão grande de "copiar link / enviar no WhatsApp".
-- **Com conta (opcional):** login pelo Google ou por link mágico no e-mail, sem senha. Quem tem conta vê todos os seus palpites em `/meus-palpites`.
+- **Só o administrador cadastra participantes.** O cadastro é apenas o nome. Cada participante tem um perfil público e pode ter vários palpites.
+- **Palpite pelo site:** no `/palpite`, a pessoa só dá um nome ao palpite e escolhe os times. O palpite entra **sem participante**.
+- **Revisão pelo admin:** depois, o administrador ajusta os nomes dos palpites e atribui cada um a um participante já cadastrado.
+- Ao enviar, a pessoa recebe um **link de edição do palpite** (`/meu/[token]`), com botão de "copiar link / enviar no WhatsApp", para mudar o palpite até o prazo.
+- Dois palpites da mesma edição não podem ter o mesmo nome.
 - O admin também pode cadastrar palpites por qualquer pessoa.
 - **Palpite repetido:** antes de confirmar, verifique a `selection_key`. Se já existir um palpite igual, avise com uma mensagem amigável ("Já existe um palpite com exatamente esses times. Se terminarem empatados, dividem a posição e o prêmio. Quer manter ou trocar algum time?"). O aviso não bloqueia o envio.
 - Depois do prazo, os palpites ficam travados.
@@ -187,7 +196,8 @@ Muitos participantes são leigos digitalmente. **Nenhuma ação pública pode ex
 ## Diretrizes de interface
 
 - **Mobile-first.** A maioria acessa pelo celular, a partir de um link no WhatsApp.
-- Navegação simples com 4 abas: Classificação · Times · Campeonato · Histórico.
+- Navegação simples com 5 abas: Classificação · Participantes · Times · Campeonato · Histórico.
+- No desktop, o layout usa a largura da tela (colunas e grades); no celular, uma coluna só.
 - Textos curtos e botões grandes. Nada de jargão técnico.
 - Escudos dos times sempre que aparecer um time.
 - Mostrar "Atualizado após a rodada X" no topo da classificação.
@@ -201,8 +211,8 @@ Muitos participantes são leigos digitalmente. **Nenhuma ação pública pode ex
 2. **Motor de cálculo + testes** (antes de qualquer tela).
 3. Admin: lançar resultados e cadastrar palpites.
 4. Páginas públicas: classificação, times, campeonato e regras.
-5. Formulário de palpite sem conta, com aviso de repetido e link pessoal.
-6. Login opcional.
+5. Formulário de palpite sem conta, com aviso de repetido e link de edição.
+6. Participantes cadastrados pelo admin, revisão dos palpites, perfis e troféus.
 7. Histórico e importação das edições antigas (planilhas).
 8. (Futuro) Importar resultados automaticamente de uma API de futebol.
 

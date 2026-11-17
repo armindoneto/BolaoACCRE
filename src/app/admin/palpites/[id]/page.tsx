@@ -21,16 +21,10 @@ export default async function EditarPalpiteAdminPage({
   return (
     <div className="space-y-4">
       <EditionHeader edition={bundle.edition} title="Editar palpite" />
-      <p className="text-sm text-muted">
-        Para passar o palpite para outra pessoa, troque o participante. Para corrigir o nome de alguém, use a aba
-        Participantes.
-      </p>
       <PickForm
         tiers={pickFormTiers(bundle)}
-        askName
         participants={participants.map((p) => ({ id: p.id, name: p.name }))}
-        initialParticipantId={entry.participantId}
-        initial={{ nickname: entry.nickname, picks: entry.picks }}
+        initial={{ name: entry.name, picks: entry.picks, participantId: entry.participantId ?? "" }}
         submitLabel="Salvar palpite"
         onSave={adminUpdateEntry.bind(null, bundle.edition.id, entry.id)}
       />

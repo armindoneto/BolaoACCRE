@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { computeBundle, getBundle, listEditions, type EditionBundle, type Entry } from "@/lib/data";
 import type { EngineResult, PeriodStatus, PrizePosition } from "@/lib/scoring";
-import { entryLabels } from "@/lib/view";
 import { trophyKind, type Trophies } from "./trophy-types";
 
 export interface ComputedEdition {
@@ -81,14 +80,13 @@ export function participantHistory(all: ComputedEdition[], participantId: string
   return all.flatMap(({ bundle, result }) => {
     const mine = bundle.entries.filter((e) => e.participantId === participantId);
     if (mine.length === 0) return [];
-    const labels = entryLabels(bundle);
     return [
       {
         bundle,
         result,
         entries: mine.map((entry) => ({
           entry,
-          label: labels.get(entry.id) ?? entry.participantName,
+          label: entry.name,
           periods: result.periods.flatMap((period) => {
             const row = period.ranking.find((r) => r.entryId === entry.id);
             return row

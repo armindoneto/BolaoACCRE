@@ -41,8 +41,8 @@ export default async function ParticipantePage({
 
   return (
     <div className="space-y-5">
-      <Link href="/" className="no-print inline-flex items-center gap-1 text-sm font-semibold text-primary">
-        <ChevronLeft className="size-4" /> Classificação
+      <Link href="/participantes" className="no-print inline-flex items-center gap-1 text-sm font-semibold text-primary">
+        <ChevronLeft className="size-4" /> Participantes
       </Link>
 
       <header className="card flex flex-wrap items-center justify-between gap-4 p-5">
@@ -91,8 +91,8 @@ export default async function ParticipantePage({
           </div>
           <PendingNotice bundle={current.bundle} period={period} />
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            {current.entries.map(({ entry, label }) => (
-              <EntryDetail key={entry.id} bundle={current.bundle} period={period} entry={entry} label={label} />
+            {current.entries.map(({ entry }) => (
+              <EntryDetail key={entry.id} bundle={current.bundle} period={period} entry={entry} />
             ))}
           </div>
         </section>
@@ -116,7 +116,6 @@ export default async function ParticipantePage({
                     <li key={entry.id} className="px-4 py-2.5">
                       <p className="text-sm font-semibold">
                         {label}
-                        {entry.nickname && <span className="font-normal text-muted"> · {entry.nickname}</span>}
                       </p>
                       <ul className="mt-1 grid grid-cols-2 gap-2">
                         {periods.map((p) => {

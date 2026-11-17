@@ -85,16 +85,16 @@ function mapMatch(row: any): Match {
 }
 
 const ENTRY_COLUMNS =
-  "id, edition_id, participant_id, nickname, selection_key, created_at, participants(display_name), entry_picks(tier, team_id)";
+  "id, edition_id, participant_id, name, selection_key, created_at, participants(display_name), entry_picks(tier, team_id)";
 
 function mapEntry(row: any): Entry {
   const picks: Record<number, string> = {};
   for (const p of row.entry_picks ?? []) picks[p.tier] = p.team_id;
   return {
     id: row.id,
-    participantId: row.participant_id,
-    participantName: row.participants?.display_name ?? "",
-    nickname: row.nickname,
+    name: row.name,
+    participantId: row.participant_id ?? null,
+    participantName: row.participants?.display_name ?? null,
     selectionKey: row.selection_key,
     picks,
     createdAt: row.created_at,
@@ -176,53 +176,61 @@ export const supabaseRepo: Repo = {
   },
 
   async createEntry(input) {
+    const token = newToken();
     const row = check(
       await db()
         .from("entries")
         .insert({
           edition_id: input.editionId,
           participant_id: input.participantId,
-          nickname: input.nickname,
+          name: input.name,
           selection_key: selectionKey(input.picks),
+          access_token: token,
         })
         .select("id")
         .single(),
     );
     await writePicks(row.id, input.picks);
     const full = check(await db().from("entries").select(ENTRY_COLUMNS).eq("id", row.id).single());
-    return mapEntry(full);
+    return { entry: mapEntry(full), token };
   },
 
   async updateEntry(entryId, patch) {
-    const row: Record<string, unknown> = {
-      nickname: patch.nickname,
-      selection_key: selectionKey(patch.picks),
-    };
-    if (patch.participantId) row.participant_id = patch.participantId;
-    check(await db().from("entries").update(row).eq("id", entryId));
-    await writePicks(entryId, patch.picks);
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.picks) row.selection_key = selectionKey(patch.picks);
+    if (patch.participantId !== undefined) row.participant_id = patch.participantId;
+    if (Object.keys(row).length) check(await db().from("entries").update(row).eq("id", entryId));
+    if (patch.picks) await writePicks(entryId, patch.picks);
   },
 
   async deleteEntry(entryId) {
     check(await db().from("entries").delete().eq("id", entryId));
   },
 
+  async getEntryByToken(token) {
+    const row = check(
+      await db().from("entries").select("id, edition_id").eq("access_token", token).maybeSingle(),
+    );
+    return row ? { editionId: row.edition_id, entryId: row.id } : null;
+  },
+
+  async getEntryToken(entryId) {
+    const row = check(await db().from("entries").select("access_token").eq("id", entryId).maybeSingle());
+    return row?.access_token ?? null;
+  },
+
   async listParticipants() {
     const [participants, entries] = await Promise.all([
-      db().from("participants").select("id, display_name, user_id").order("display_name"),
-      db().from("entries").select("participant_id"),
+      db().from("participants").select("id, display_name").order("display_name"),
+      db().from("entries").select("participant_id").not("participant_id", "is", null),
     ]);
     const counts = new Map<string, number>();
     for (const e of check(entries) ?? []) {
       counts.set(e.participant_id, (counts.get(e.participant_id) ?? 0) + 1);
     }
     return (check(participants) ?? [])
-      .map((p: any) => ({
-        id: p.id,
-        name: p.display_name,
-        hasAccount: p.user_id !== null,
-        entryCount: counts.get(p.id) ?? 0,
-      }))
+      .map((p: any) => ({ id: p.id, name: p.display_name, entryCount: counts.get(p.id) ?? 0 }))
       .sort((a: any, b: any) => a.name.localeCompare(b.name, "pt-BR"));
   },
 
@@ -232,57 +240,15 @@ export const supabaseRepo: Repo = {
     );
   },
 
-  async getParticipantByToken(token) {
-    return toRef(
-      check(await db().from("participants").select("id, display_name").eq("access_token", token).maybeSingle()),
-    );
-  },
-
-  async getParticipantByUser(userId) {
-    const rows = check(
-      await db()
-        .from("participants")
-        .select("id, display_name")
-        .eq("user_id", userId)
-        .order("created_at")
-        .limit(1),
-    );
-    return toRef(rows?.[0]);
-  },
-
-  async getParticipantToken(participantId) {
+  async createParticipant(name) {
     const row = check(
-      await db().from("participants").select("access_token").eq("id", participantId).maybeSingle(),
+      await db().from("participants").insert({ display_name: name }).select("id, display_name").single(),
     );
-    return row?.access_token ?? null;
-  },
-
-  async createParticipant(name, userId = null) {
-    const token = newToken();
-    const row = check(
-      await db()
-        .from("participants")
-        .insert({ display_name: name, user_id: userId, access_token: token })
-        .select("id, display_name")
-        .single(),
-    );
-    return { id: row.id, name: row.display_name, token };
+    return { id: row.id, name: row.display_name };
   },
 
   async renameParticipant(participantId, name) {
     check(await db().from("participants").update({ display_name: name }).eq("id", participantId));
-  },
-
-  async mergeParticipants(fromId, intoId) {
-    const rows = check(await db().from("participants").select("id, user_id").in("id", [fromId, intoId])) ?? [];
-    const from = rows.find((r: any) => r.id === fromId);
-    const into = rows.find((r: any) => r.id === intoId);
-    if (!from || !into) throw new Error("Participante não encontrado");
-    check(await db().from("entries").update({ participant_id: intoId }).eq("participant_id", fromId));
-    if (!into.user_id && from.user_id) {
-      check(await db().from("participants").update({ user_id: from.user_id }).eq("id", intoId));
-    }
-    check(await db().from("participants").delete().eq("id", fromId));
   },
 
   async deleteParticipant(participantId) {
@@ -291,10 +257,6 @@ export const supabaseRepo: Repo = {
     );
     if (entries?.length) throw new Error("Este participante ainda tem palpites.");
     check(await db().from("participants").delete().eq("id", participantId));
-  },
-
-  async linkParticipantToUser(participantId, userId) {
-    check(await db().from("participants").update({ user_id: userId }).eq("id", participantId));
   },
 
   async updateEdition(editionId, patch) {

@@ -5,10 +5,12 @@ import type { EditionBundle, EditionTeam } from "@/lib/data";
 /** Linha da classificação pronta para exibir (serializável para componentes de cliente). */
 export interface RankingViewRow {
   entryId: string;
-  participantId: string;
+  /** null enquanto o palpite não foi atribuído a um participante. */
+  participantId: string | null;
+  participantName: string | null;
   position: number;
+  /** Nome do palpite. */
   name: string;
-  nickname: string | null;
   points: string;
   prizes: PrizePosition[];
   sharedWith: number;
@@ -27,28 +29,8 @@ export function toBadge(team: EditionTeam): BadgeTeam {
   return { name: team.name, code: team.code, crestUrl: team.crestUrl, color: team.color, color2: team.color2 };
 }
 
-/**
- * Nome de exibição de cada palpite. Quem tem mais de um palpite na edição
- * aparece numerado pela ordem de criação: "Fulano 1", "Fulano 2"...
- */
-export function entryLabels(bundle: EditionBundle): Map<string, string> {
-  const byParticipant = new Map<string, EditionBundle["entries"]>();
-  for (const e of bundle.entries) {
-    byParticipant.set(e.participantId, [...(byParticipant.get(e.participantId) ?? []), e]);
-  }
-  const labels = new Map<string, string>();
-  for (const list of byParticipant.values()) {
-    const sorted = [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    sorted.forEach((e, i) => {
-      labels.set(e.id, sorted.length > 1 ? `${e.participantName} ${i + 1}` : e.participantName);
-    });
-  }
-  return labels;
-}
-
 export function buildRankingRows(bundle: EditionBundle, period: PeriodResult): RankingViewRow[] {
   const teams = teamMap(bundle);
-  const labels = entryLabels(bundle);
   const entries = new Map(bundle.entries.map((e) => [e.id, e]));
   const tiers = tiersOf(bundle);
   return period.ranking.flatMap((row) => {
@@ -58,9 +40,9 @@ export function buildRankingRows(bundle: EditionBundle, period: PeriodResult): R
       {
         entryId: row.entryId,
         participantId: entry.participantId,
+        participantName: entry.participantName,
         position: row.position,
-        name: labels.get(entry.id) ?? entry.participantName,
-        nickname: entry.nickname,
+        name: entry.name,
         points: formatPoints(row.tenths),
         prizes: row.prizes,
         sharedWith: row.sharedWith,

@@ -11,27 +11,36 @@ import { newToken, normalizeName, teamCodeFromName } from "./util";
 interface StoredParticipant {
   id: string;
   name: string;
-  token: string;
-  userId: string | null;
 }
 
 interface Store {
   bundles: Map<string, EditionBundle>;
   participants: Map<string, StoredParticipant>;
+  /** id do palpite -> token do link de edição */
+  tokens: Map<string, string>;
 }
 
-const g = globalThis as unknown as { __bolaoDemoStore2?: Store };
+const g = globalThis as unknown as { __bolaoDemoStore3?: Store };
 
 function store(): Store {
-  if (!g.__bolaoDemoStore2) {
-    g.__bolaoDemoStore2 = {
+  if (!g.__bolaoDemoStore3) {
+    g.__bolaoDemoStore3 = {
       bundles: new Map(buildDemoBundles().map((b) => [b.edition.id, b])),
-      participants: new Map(
-        DEMO_PARTICIPANTS.map((p) => [p.id, { ...p, token: newToken(), userId: null }]),
-      ),
+      participants: new Map(DEMO_PARTICIPANTS.map((p) => [p.id, { ...p }])),
+      tokens: new Map(),
     };
   }
-  return g.__bolaoDemoStore2;
+  return g.__bolaoDemoStore3;
+}
+
+function tokenFor(entryId: string): string {
+  const s = store();
+  let token = s.tokens.get(entryId);
+  if (!token) {
+    token = newToken();
+    s.tokens.set(entryId, token);
+  }
+  return token;
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -95,29 +104,31 @@ export const memoryRepo: Repo = {
   async createEntry(input) {
     const bundle = store().bundles.get(input.editionId);
     if (!bundle) throw new Error("Edição não encontrada");
-    const participant = mustParticipant(input.participantId);
+    const participant = input.participantId ? mustParticipant(input.participantId) : null;
     const entry: Entry = {
       id: randomUUID(),
-      participantId: participant.id,
-      participantName: participant.name,
-      nickname: input.nickname,
+      name: input.name,
+      participantId: participant?.id ?? null,
+      participantName: participant?.name ?? null,
       selectionKey: selectionKey(input.picks),
       picks: { ...input.picks },
       createdAt: new Date().toISOString(),
     };
     bundle.entries.push(entry);
-    return clone(entry);
+    return { entry: clone(entry), token: tokenFor(entry.id) };
   },
 
   async updateEntry(entryId, patch) {
     const { entry } = findEntry(entryId);
-    entry.nickname = patch.nickname;
-    entry.picks = { ...patch.picks };
-    entry.selectionKey = selectionKey(patch.picks);
-    if (patch.participantId && patch.participantId !== entry.participantId) {
-      const participant = mustParticipant(patch.participantId);
-      entry.participantId = participant.id;
-      entry.participantName = participant.name;
+    if (patch.name !== undefined) entry.name = patch.name;
+    if (patch.picks) {
+      entry.picks = { ...patch.picks };
+      entry.selectionKey = selectionKey(patch.picks);
+    }
+    if (patch.participantId !== undefined) {
+      const participant = patch.participantId ? mustParticipant(patch.participantId) : null;
+      entry.participantId = participant?.id ?? null;
+      entry.participantName = participant?.name ?? null;
     }
   },
 
@@ -126,11 +137,26 @@ export const memoryRepo: Repo = {
     bundle.entries = bundle.entries.filter((e) => e.id !== entryId);
   },
 
+  async getEntryByToken(token) {
+    const entryId = [...store().tokens.entries()].find(([, t]) => t === token)?.[0];
+    if (!entryId) return null;
+    for (const bundle of store().bundles.values()) {
+      if (bundle.entries.some((e) => e.id === entryId)) return { editionId: bundle.edition.id, entryId };
+    }
+    return null;
+  },
+
+  async getEntryToken(entryId) {
+    return tokenFor(findEntry(entryId).entry.id);
+  },
+
   async listParticipants() {
     const counts = new Map<string, number>();
-    for (const e of allEntries()) counts.set(e.participantId, (counts.get(e.participantId) ?? 0) + 1);
+    for (const e of allEntries()) {
+      if (e.participantId) counts.set(e.participantId, (counts.get(e.participantId) ?? 0) + 1);
+    }
     return [...store().participants.values()]
-      .map((p) => ({ id: p.id, name: p.name, hasAccount: p.userId !== null, entryCount: counts.get(p.id) ?? 0 }))
+      .map((p) => ({ id: p.id, name: p.name, entryCount: counts.get(p.id) ?? 0 }))
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   },
 
@@ -138,22 +164,10 @@ export const memoryRepo: Repo = {
     return ref(store().participants.get(participantId));
   },
 
-  async getParticipantByToken(token) {
-    return ref([...store().participants.values()].find((p) => p.token === token));
-  },
-
-  async getParticipantByUser(userId) {
-    return ref([...store().participants.values()].find((p) => p.userId === userId));
-  },
-
-  async getParticipantToken(participantId) {
-    return store().participants.get(participantId)?.token ?? null;
-  },
-
-  async createParticipant(name, userId = null) {
-    const p: StoredParticipant = { id: randomUUID(), name, token: newToken(), userId };
+  async createParticipant(name) {
+    const p: StoredParticipant = { id: randomUUID(), name };
     store().participants.set(p.id, p);
-    return { id: p.id, name: p.name, token: p.token };
+    return { ...p };
   },
 
   async renameParticipant(participantId, name) {
@@ -161,27 +175,11 @@ export const memoryRepo: Repo = {
     for (const e of allEntries()) if (e.participantId === participantId) e.participantName = name;
   },
 
-  async mergeParticipants(fromId, intoId) {
-    const from = mustParticipant(fromId);
-    const into = mustParticipant(intoId);
-    for (const e of allEntries()) {
-      if (e.participantId !== fromId) continue;
-      e.participantId = into.id;
-      e.participantName = into.name;
-    }
-    into.userId ??= from.userId;
-    store().participants.delete(fromId);
-  },
-
   async deleteParticipant(participantId) {
     if (allEntries().some((e) => e.participantId === participantId)) {
       throw new Error("Este participante ainda tem palpites.");
     }
     store().participants.delete(participantId);
-  },
-
-  async linkParticipantToUser(participantId, userId) {
-    mustParticipant(participantId).userId = userId;
   },
 
   async updateEdition(editionId, patch) {

@@ -107,12 +107,12 @@ function buildDemoEdition(o: DemoOptions): EditionBundle {
   const byTier = new Map<number, EditionTeam[]>();
   for (const t of teams) byTier.set(t.tier, [...(byTier.get(t.tier) ?? []), t]);
   const entries: Entry[] = [];
-  const addEntry = (pIndex: number, picks: Record<number, string>) => {
+  const addEntry = (pIndex: number | null, name: string, picks: Record<number, string>) => {
     entries.push({
       id: `${o.id}-e${entries.length + 1}`,
-      participantId: DEMO_PARTICIPANTS[pIndex].id,
-      participantName: DEMO_PARTICIPANTS[pIndex].name,
-      nickname: null,
+      name,
+      participantId: pIndex === null ? null : DEMO_PARTICIPANTS[pIndex].id,
+      participantName: pIndex === null ? null : DEMO_PARTICIPANTS[pIndex].name,
       selectionKey: selectionKey(picks),
       picks,
       createdAt: new Date(start - 86400000 * 5 + entries.length * 60000).toISOString(),
@@ -126,11 +126,17 @@ function buildDemoEdition(o: DemoOptions): EditionBundle {
   for (let i = 0; i < o.participants; i++) {
     // Um em cada quatro faz dois palpites; o primeiro da lista faz três.
     const count = i === 0 ? 3 : i % 4 === 0 ? 2 : 1;
-    for (let k = 0; k < count; k++) addEntry(i, randomPicks());
+    const name = DEMO_PARTICIPANTS[i].name;
+    for (let k = 0; k < count; k++) addEntry(i, count > 1 ? `${name} ${k + 1}` : name, randomPicks());
   }
   // Dois palpites idênticos, para mostrar a posição dividida.
   entries[entries.length - 1].picks = { ...entries[4].picks };
   entries[entries.length - 1].selectionKey = entries[4].selectionKey;
+  // Palpites recém-chegados pelo site, ainda sem participante (aguardando revisão do admin).
+  if (o.status !== "finished") {
+    addEntry(null, "Vai que é tua", randomPicks());
+    addEntry(null, "tiao 2", randomPicks());
+  }
 
   const edition: Edition = {
     id: o.id,

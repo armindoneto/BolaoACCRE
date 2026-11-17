@@ -10,12 +10,10 @@ export function EntryDetail({
   bundle,
   period,
   entry,
-  label,
 }: {
   bundle: EditionBundle;
   period: PeriodResult;
   entry: Entry;
-  label: string;
 }) {
   const row = period.ranking.find((r) => r.entryId === entry.id);
   if (!row) return null;
@@ -50,8 +48,7 @@ export function EntryDetail({
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-bold">
-            {label}
-            {entry.nickname && <span className="font-normal text-muted"> · {entry.nickname}</span>}
+            {entry.name}
           </h3>
           <p className="text-xs text-muted">
             {[

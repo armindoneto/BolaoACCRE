@@ -6,7 +6,14 @@ import { requireAdmin } from "@/lib/auth";
 import { parseMatchesCsv } from "@/lib/csv";
 import { repo, type EditionStatus, type ResultInput } from "@/lib/data";
 import { normalizeName } from "@/lib/data/util";
-import { hasDuplicate, validateEntry, type EntryPayload, type SaveResult } from "@/lib/entries";
+import {
+  cleanEntryName,
+  hasDuplicate,
+  nameTaken,
+  validateEntry,
+  type EntryPayload,
+  type SaveResult,
+} from "@/lib/entries";
 import { parseBrDate } from "@/lib/csv";
 import { parseRules } from "@/lib/scoring";
 import { siteUrl } from "@/lib/site-url";
@@ -49,36 +56,27 @@ export async function saveResults(editionId: string, results: ResultInput[]): Pr
 
 const cleanName = (name: string) => name.trim().replace(/\s+/g, " ");
 
-/**
- * Participante que recebe o palpite: um já cadastrado (escolhido na lista)
- * ou um novo, criado com o nome informado.
- */
-async function participantFor(payload: EntryPayload): Promise<{ id: string } | { error: string }> {
-  if (payload.participantId) {
-    const found = await repo().getParticipant(payload.participantId);
-    return found ?? { error: "Participante não encontrado. Atualize a página." };
-  }
-  const name = cleanName(payload.name ?? "");
-  if (name.length < 2 || name.length > 60) return { error: "Escreva o nome do participante." };
-  const same = (await repo().listParticipants()).find((p) => normalizeName(p.name) === normalizeName(name));
-  if (same) {
-    return { error: `Já existe um participante chamado "${same.name}". Escolha-o na lista, ou use um nome diferente.` };
-  }
-  return repo().createParticipant(name);
+/** Participante escolhido no formulário: um já cadastrado, ou nenhum. */
+async function chosenParticipant(
+  participantId: string | null | undefined,
+): Promise<{ id: string | null } | { error: string }> {
+  if (!participantId) return { id: null };
+  const found = await repo().getParticipant(participantId);
+  return found ? { id: found.id } : { error: "Participante não encontrado. Atualize a página." };
 }
 
 export async function adminCreateEntry(editionId: string, payload: EntryPayload): Promise<SaveResult> {
   await requireAdmin();
   const bundle = await mustGetBundle(editionId);
-  const valid = validateEntry(bundle, payload, false);
+  const valid = validateEntry(bundle, payload);
   if (!valid.ok) return valid;
   if (!payload.confirmDuplicate && hasDuplicate(bundle, valid.entry.picks)) return { ok: false, duplicate: true };
-  const participant = await participantFor(payload);
+  const participant = await chosenParticipant(payload.participantId);
   if ("error" in participant) return { ok: false, error: participant.error };
   await repo().createEntry({
     editionId,
+    name: valid.entry.name,
     participantId: participant.id,
-    nickname: valid.entry.nickname,
     picks: valid.entry.picks,
   });
   refresh();
@@ -93,20 +91,40 @@ export async function adminUpdateEntry(
   await requireAdmin();
   const bundle = await mustGetBundle(editionId);
   if (!bundle.entries.some((e) => e.id === entryId)) return { ok: false, error: "Palpite não encontrado." };
-  const valid = validateEntry(bundle, payload, false);
+  const valid = validateEntry(bundle, payload, entryId);
   if (!valid.ok) return valid;
   if (!payload.confirmDuplicate && hasDuplicate(bundle, valid.entry.picks, entryId)) {
     return { ok: false, duplicate: true };
   }
-  const participant = await participantFor(payload);
+  const participant = await chosenParticipant(payload.participantId);
   if ("error" in participant) return { ok: false, error: participant.error };
   await repo().updateEntry(entryId, {
-    nickname: valid.entry.nickname,
+    name: valid.entry.name,
     picks: valid.entry.picks,
     participantId: participant.id,
   });
   refresh();
   return { ok: true, redirectTo: `/admin/palpites?edicao=${editionId}` };
+}
+
+/** Revisão rápida na lista: ajusta o nome do palpite e o participante, sem mexer nos times. */
+export async function adminReviewEntry(
+  editionId: string,
+  entryId: string,
+  rawName: string,
+  participantId: string | null,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const bundle = await mustGetBundle(editionId);
+  if (!bundle.entries.some((e) => e.id === entryId)) return { ok: false, error: "Palpite não encontrado." };
+  const name = cleanEntryName(rawName);
+  if (name.length < 2 || name.length > 40) return { ok: false, error: "O nome deve ter de 2 a 40 letras." };
+  if (nameTaken(bundle, name, entryId)) return { ok: false, error: `Já existe um palpite chamado "${name}".` };
+  const participant = await chosenParticipant(participantId);
+  if ("error" in participant) return { ok: false, error: participant.error };
+  await repo().updateEntry(entryId, { name, participantId: participant.id });
+  refresh();
+  return { ok: true, message: "Salvo." };
 }
 
 export async function adminDeleteEntry(entryId: string): Promise<void> {
@@ -115,13 +133,14 @@ export async function adminDeleteEntry(entryId: string): Promise<void> {
   refresh();
 }
 
-// ---------- Participantes ----------
-
-export async function adminParticipantLink(participantId: string): Promise<string | null> {
+/** Link de edição de um palpite, para o admin repassar a quem palpitou. */
+export async function adminEntryLink(entryId: string): Promise<string | null> {
   await requireAdmin();
-  const token = await repo().getParticipantToken(participantId);
+  const token = await repo().getEntryToken(entryId);
   return token ? `${await siteUrl()}/meu/${token}` : null;
 }
+
+// ---------- Participantes ----------
 
 export async function adminCreateParticipant(rawName: string): Promise<ActionResult> {
   await requireAdmin();
@@ -141,21 +160,10 @@ export async function adminRenameParticipant(participantId: string, rawName: str
   const same = (await repo().listParticipants()).find(
     (p) => p.id !== participantId && normalizeName(p.name) === normalizeName(name),
   );
-  if (same) return { ok: false, error: `Já existe outro participante chamado "${same.name}". Se for a mesma pessoa, use "Juntar".` };
+  if (same) return { ok: false, error: `Já existe outro participante chamado "${same.name}".` };
   await repo().renameParticipant(participantId, name);
   refresh();
   return { ok: true, message: "Nome alterado." };
-}
-
-/** Junta dois cadastros da mesma pessoa: os palpites de `fromId` passam para `intoId`. */
-export async function adminMergeParticipants(fromId: string, intoId: string): Promise<ActionResult> {
-  await requireAdmin();
-  if (!intoId || fromId === intoId) return { ok: false, error: "Escolha outro participante para juntar." };
-  const [from, into] = await Promise.all([repo().getParticipant(fromId), repo().getParticipant(intoId)]);
-  if (!from || !into) return { ok: false, error: "Participante não encontrado. Atualize a página." };
-  await repo().mergeParticipants(fromId, intoId);
-  refresh();
-  return { ok: true, message: `Os palpites de ${from.name} agora são de ${into.name}.` };
 }
 
 export async function adminDeleteParticipant(participantId: string): Promise<ActionResult> {
