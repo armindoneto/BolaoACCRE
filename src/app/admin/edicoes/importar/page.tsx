@@ -11,7 +11,7 @@ export default function ImportarEdicaoPage() {
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight">Importar bolão antigo</h1>
         <p className="text-sm text-muted">
-          Para bolões já encerrados. Copie as tabelas da planilha (selecione as células no Excel e cole aqui). A
+          Para bolões já encerrados. Copie os dados da planilha (selecione as células no Excel e cole aqui). A
           edição entra direto no Histórico, com a classificação final e os pontos de cada time.
         </p>
       </div>

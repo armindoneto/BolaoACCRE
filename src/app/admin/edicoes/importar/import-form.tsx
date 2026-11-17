@@ -4,11 +4,21 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { importHistoricEdition, type HistoryImportForm, type HistoryImportResult } from "../../actions";
 
-const TEAMS_EXAMPLE = `nível	time	etapa	total	Vitórias	Empates	Goleadas	Fora de casa	Campeão	Rebaixado
-1	Flamengo	1	38,5	30	4	2	2,5
-1	Palmeiras	1	41	27	5	4	2	3
-2	Cruzeiro	1	22	18	6			 	-3
-1	Flamengo	2	35	27	6	2`;
+const TIERS_EXAMPLE = `1: Flamengo, Palmeiras
+2: Cruzeiro, Mirassol
+3: Fluminense, Botafogo`;
+
+const POINTS_EXAMPLE = `1º turno
+Flamengo
+3,0	Vitória	1ª Rodada
+0,5	Vitória fora de casa	1ª Rodada
+1,0	Empate	2ª Rodada
+Palmeiras
+3,0	Vitória	1ª Rodada
+2º turno
+Flamengo
+1,0	Empate	21ª Rodada
+3,0	Vitória	22ª Rodada`;
 
 const ENTRIES_EXAMPLE = `palpite	participante	N1	N2	N3	…	N10	pos 1	pts 1	pos 2	pts 2
 João 1	João Silva	Flamengo	Cruzeiro	Botafogo	…	Remo	1	312,5	7	280
@@ -19,7 +29,8 @@ export function ImportHistoryForm() {
     name: "",
     season: new Date().getFullYear() - 1,
     periods: "1º turno, 2º turno",
-    teamsText: "",
+    tiersText: "",
+    pointsText: "",
     entriesText: "",
   });
   const [result, setResult] = useState<HistoryImportResult | null>(null);
@@ -80,27 +91,45 @@ export function ImportHistoryForm() {
       </section>
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <section className="card space-y-2 p-4">
-          <label className="label" htmlFor="h-teams">1. Times e pontos</label>
-          <p className="text-sm text-muted">
-            Uma linha por time em cada etapa. As quatro primeiras colunas são fixas: <strong>nível, time, etapa, total</strong>.
-            Daí em diante, cada coluna é um tipo de ponto, com o nome que você puser no cabeçalho (é o detalhamento).
-            O total precisa bater com a soma do detalhamento; se não houver detalhamento, preencha só o total.
-          </p>
-          <pre className="overflow-x-auto rounded-xl bg-bg p-3 text-[11px] leading-relaxed">{TEAMS_EXAMPLE}</pre>
-          <textarea
-            id="h-teams"
-            spellCheck={false}
-            className="input min-h-56 whitespace-pre py-2 font-mono text-xs"
-            value={form.teamsText}
-            onChange={(e) => set("teamsText", e.target.value)}
-            placeholder="Cole aqui a tabela de times, com o cabeçalho"
-            required
-          />
-        </section>
+        <div className="space-y-4">
+          <section className="card space-y-2 p-4">
+            <label className="label" htmlFor="h-tiers">1. Níveis e times</label>
+            <p className="text-sm text-muted">Uma linha por nível, com os times separados por vírgula.</p>
+            <pre className="overflow-x-auto rounded-xl bg-bg p-3 text-[11px] leading-relaxed">{TIERS_EXAMPLE}</pre>
+            <textarea
+              id="h-tiers"
+              spellCheck={false}
+              className="input min-h-40 whitespace-pre py-2 font-mono text-xs"
+              value={form.tiersText}
+              onChange={(e) => set("tiersText", e.target.value)}
+              placeholder="1: Time A, Time B"
+              required
+            />
+          </section>
+
+          <section className="card space-y-2 p-4">
+            <label className="label" htmlFor="h-points">2. Pontos de cada time</label>
+            <p className="text-sm text-muted">
+              Escreva o <strong>nome da etapa</strong> numa linha, depois o <strong>nome do time</strong> e, embaixo, os
+              lançamentos dele: <strong>pontos, descrição</strong> e, se quiser, um complemento (a rodada). A descrição
+              aparece no site exatamente como você escrever; nenhuma regra é aplicada. O total do time é a soma dos
+              lançamentos.
+            </p>
+            <pre className="overflow-x-auto rounded-xl bg-bg p-3 text-[11px] leading-relaxed">{POINTS_EXAMPLE}</pre>
+            <textarea
+              id="h-points"
+              spellCheck={false}
+              className="input min-h-72 whitespace-pre py-2 font-mono text-xs"
+              value={form.pointsText}
+              onChange={(e) => set("pointsText", e.target.value)}
+              placeholder="Cole aqui os lançamentos, time por time"
+              required
+            />
+          </section>
+        </div>
 
         <section className="card space-y-2 p-4">
-          <label className="label" htmlFor="h-entries">2. Palpites</label>
+          <label className="label" htmlFor="h-entries">3. Palpites</label>
           <p className="text-sm text-muted">
             Uma linha por palpite: <strong>nome do palpite, participante</strong> e o time escolhido em cada nível, na
             ordem dos níveis. Depois, opcionais: <strong>pos 1, pos 2</strong> (posição final em cada etapa) e{" "}
@@ -111,7 +140,7 @@ export function ImportHistoryForm() {
           <textarea
             id="h-entries"
             spellCheck={false}
-            className="input min-h-56 whitespace-pre py-2 font-mono text-xs"
+            className="input min-h-72 whitespace-pre py-2 font-mono text-xs"
             value={form.entriesText}
             onChange={(e) => set("entriesText", e.target.value)}
             placeholder="Cole aqui a tabela de palpites, com o cabeçalho"
@@ -141,6 +170,11 @@ export function ImportHistoryForm() {
             {result.summary.teams} times em {result.summary.tiers} níveis · {result.summary.entries} palpites ·{" "}
             {result.summary.participants.length} participantes
           </p>
+          {result.summary.warnings.map((w) => (
+            <p key={w} className="rounded-xl bg-warn-soft p-2.5 text-warn">
+              <strong>Atenção:</strong> {w}
+            </p>
+          ))}
           {result.summary.newParticipants.length > 0 && (
             <p>
               <strong>Participantes novos, que serão cadastrados:</strong> {result.summary.newParticipants.join(", ")}.

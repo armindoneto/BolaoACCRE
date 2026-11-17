@@ -25,10 +25,16 @@ const imported: ImportedResults = {
     {
       id: "T1",
       teamScores: {
-        a1: { tenths: 305, items: [{ label: "Vitória", tenths: 270, count: 9 }, { label: "Fora de casa", tenths: 35, count: 7 }] },
+        a1: {
+          tenths: 305,
+          items: [
+            { label: "Vitória", tenths: 270, detail: "22ª Rodada" },
+            { label: "Vitória fora de casa", tenths: 35 },
+          ],
+        },
         a2: { tenths: 200, items: [] },
         b1: { tenths: 150, items: [] },
-        b2: { tenths: -20, items: [{ label: "Rebaixado", tenths: -30 }, { label: "Empate", tenths: 10, count: 1 }] },
+        b2: { tenths: -20, items: [{ label: "Rebaixado", tenths: -30 }, { label: "Empate", tenths: 10 }] },
       },
     },
     { id: "T2", teamScores: { a1: { tenths: 100, items: [] } } },
@@ -49,9 +55,9 @@ describe("edição importada", () => {
   it("os pontos dos times vêm prontos, com o detalhamento", () => {
     const a1 = result.periods[0].teamScores.a1;
     expect(a1.tenths).toBe(305);
-    expect(a1.items.map((i) => [i.source, i.label, i.tenths, i.count])).toEqual([
-      ["imported", "Vitória", 270, 9],
-      ["imported", "Fora de casa", 35, 7],
+    expect(a1.items.map((i) => [i.source, i.label, i.tenths, i.detail])).toEqual([
+      ["imported", "Vitória", 270, "22ª Rodada"],
+      ["imported", "Vitória fora de casa", 35, undefined],
     ]);
     // time sem dados na etapa fica com zero
     expect(result.periods[1].teamScores.b1.tenths).toBe(0);

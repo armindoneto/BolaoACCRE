@@ -4,12 +4,19 @@ import { normalizeName } from "@/lib/data/util";
  * Leitura dos dados de um bolão ANTIGO, colados da planilha (colunas separadas
  * por tabulação, que é como o Excel copia, ou por ponto e vírgula).
  *
- * Tabela de TIMES — uma linha por time em cada etapa:
- *   nível | time | etapa | total | <uma coluna por tipo de ponto...>
- * As colunas depois de "total" são o detalhamento; o nome de cada uma vem do
- * cabeçalho. "total" pode ficar vazio (vale a soma do detalhamento).
+ * NÍVEIS — uma linha por nível: "1: Flamengo, Palmeiras".
  *
- * Tabela de PALPITES — uma linha por palpite:
+ * PONTOS DOS TIMES — lista de lançamentos, time por time:
+ *   2º turno                          <- nome da etapa (vale para o que vem depois)
+ *   Flamengo                          <- nome do time
+ *   1,0   Empate                 21ª Rodada
+ *   3,0   Vitória                22ª Rodada
+ *   0,5   Vitória fora de casa   22ª Rodada
+ * Cada lançamento é: pontos, descrição e, se houver, um complemento (a rodada).
+ * A descrição é guardada exatamente como está escrita: nenhuma regra é
+ * aplicada. O total do time na etapa é a soma dos seus lançamentos.
+ *
+ * PALPITES — uma linha por palpite:
  *   palpite | participante | <um time por nível...> | pos 1 | pts 1 | pos 2 | pts 2
  * As colunas "pos N" (posição final na etapa N) e "pts N" (pontos na etapa N,
  * só para conferência) são opcionais.
@@ -17,7 +24,7 @@ import { normalizeName } from "@/lib/data/util";
 
 export interface ParsedTeamScore {
   tenths: number;
-  items: { label: string; tenths: number }[];
+  items: { label: string; tenths: number; detail?: string }[];
 }
 
 export interface ParsedEntry {
@@ -30,6 +37,8 @@ export interface ParsedEntry {
 }
 
 export interface ParsedHistory {
+  /** Avisos que não impedem a importação (ex.: time sem nenhum lançamento numa etapa). */
+  warnings: string[];
   periods: string[];
   tiers: { tier: number; teamNames: string[] }[];
   /** por etapa: nome do time -> pontos */
@@ -58,117 +67,143 @@ export function parseTenths(text: string): number | undefined {
 
 const fmt = (tenths: number) => (tenths / 10).toLocaleString("pt-BR");
 
+/** Uma linha de lançamento: pontos, descrição e complemento opcional. */
+function pointLine(line: string): { tenths: number; label: string; detail?: string } | "bad-number" | null {
+  let cells: string[];
+  if (line.includes("\t") || line.includes(";")) cells = splitLine(line);
+  else {
+    // Sem tabulação (texto copiado de PDF, por exemplo): pontos, espaço e o resto.
+    const m = /^\s*(\S+)\s+(.*)$/.exec(line);
+    cells = m ? [m[1], ...m[2].split(/\s{2,}/).map((c) => c.trim())] : [line.trim()];
+  }
+  const filled = cells.filter((c) => c !== "");
+  if (filled.length < 2 || !/^[+\-−]?\d/.test(cells[0])) return null;
+  const tenths = parseTenths(cells[0]);
+  if (tenths === undefined) return "bad-number";
+  const [label, ...rest] = cells.slice(1).filter((c) => c !== "");
+  const detail = rest.join(" · ");
+  return detail ? { tenths, label, detail } : { tenths, label };
+}
+
 export function parseHistory(input: {
   periodNames: string[];
-  teamsText: string;
+  /** Uma linha por nível: "1: Flamengo, Palmeiras". */
+  tiersText: string;
+  /** Lançamentos de cada time, com linhas de etapa e de time (veja o topo do arquivo). */
+  pointsText: string;
   entriesText: string;
   /** Apelidos conhecidos de times (nome curto, sigla) -> nome completo. */
   aliases?: Record<string, string>;
 }): { ok: true; data: ParsedHistory } | { ok: false; errors: string[] } {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const periods = input.periodNames.map((p) => p.trim()).filter(Boolean);
   if (periods.length === 0) errors.push("Informe o nome de pelo menos uma etapa (ex.: 1º turno, 2º turno).");
   if (new Set(periods.map(normalizeName)).size !== periods.length) errors.push("Há etapas com o mesmo nome.");
 
-  const periodIndex = (text: string): number => {
-    if (/^\d+$/.test(text)) return Number(text) - 1;
-    return periods.findIndex((p) => normalizeName(p) === normalizeName(text));
-  };
-
-  // ---------- times ----------
-  const teamRows = rows(input.teamsText);
+  // ---------- níveis ----------
   const tierOfTeam = new Map<string, number>(); // nome normalizado -> nível
   const displayName = new Map<string, string>();
-  const teamScores: Map<string, ParsedTeamScore>[] = periods.map(() => new Map());
-
-  if (teamRows.length < 2) {
-    errors.push("Times: cole a tabela com o cabeçalho e pelo menos uma linha.");
-  } else {
-    const header = teamRows[0].cols;
-    const labels = header.slice(4).map((h) => h.trim());
-    if (header.length < 4) errors.push("Times: o cabeçalho precisa de pelo menos 4 colunas (nível, time, etapa, total).");
-    labels.forEach((label, i) => {
-      if (!label) errors.push(`Times: a coluna ${i + 5} do cabeçalho está sem nome.`);
-    });
-    for (const { n, cols } of teamRows.slice(1)) {
-      const where = `Times, linha ${n}`;
-      const [tierText = "", name = "", periodText = "", totalText = ""] = cols;
-      if (!/^\d+$/.test(tierText) || Number(tierText) < 1) {
-        errors.push(`${where}: o nível deve ser um número.`);
-        continue;
-      }
-      if (!name) {
-        errors.push(`${where}: falta o nome do time.`);
-        continue;
-      }
-      const p = periodIndex(periodText);
-      if (p < 0 || p >= periods.length) {
-        errors.push(`${where}: etapa "${periodText}" não existe (use 1 a ${periods.length} ou o nome da etapa).`);
-        continue;
-      }
+  input.tiersText.split(/\r?\n/).forEach((line, i) => {
+    if (!line.trim()) return;
+    const m = /^\s*(?:n[ií]vel\s*)?(\d+)\s*[:;\t–-]\s*(.+)$/i.exec(line);
+    if (!m) {
+      errors.push(`Níveis, linha ${i + 1}: use o formato "1: Time A, Time B".`);
+      return;
+    }
+    const tier = Number(m[1]);
+    for (const raw of m[2].split(/[,;\t]/)) {
+      const name = raw.trim().replace(/\s+/g, " ");
+      if (!name) continue;
       const key = normalizeName(name);
-      const tier = Number(tierText);
-      if (tierOfTeam.has(key) && tierOfTeam.get(key) !== tier) {
-        errors.push(`${where}: ${name} aparece em dois níveis diferentes.`);
-        continue;
+      if (tierOfTeam.has(key)) errors.push(`Níveis, linha ${i + 1}: ${name} aparece mais de uma vez.`);
+      else {
+        tierOfTeam.set(key, tier);
+        displayName.set(key, name);
       }
-      tierOfTeam.set(key, tier);
-      if (!displayName.has(key)) displayName.set(key, name);
-      if (teamScores[p].has(key)) {
-        errors.push(`${where}: ${name} está repetido na etapa ${periods[p]}.`);
-        continue;
-      }
-      const items: { label: string; tenths: number }[] = [];
-      let bad = false;
-      labels.forEach((label, i) => {
-        const cell = cols[4 + i] ?? "";
-        if (cell === "") return;
-        const value = parseTenths(cell);
-        if (value === undefined) {
-          errors.push(`${where}: "${cell}" na coluna "${label}" não é um número (use no máximo uma casa decimal).`);
-          bad = true;
-        } else if (value !== 0) items.push({ label, tenths: value });
-      });
-      const sum = items.reduce((total, item) => total + item.tenths, 0);
-      let tenths = sum;
-      if (totalText !== "") {
-        const total = parseTenths(totalText);
-        if (total === undefined) {
-          errors.push(`${where}: total "${totalText}" não é um número.`);
-          bad = true;
-        } else if (items.length > 0 && total !== sum) {
-          errors.push(`${where}: o total de ${name} é ${fmt(total)}, mas o detalhamento soma ${fmt(sum)}.`);
-          bad = true;
-        } else tenths = total;
-      } else if (items.length === 0) {
-        errors.push(`${where}: ${name} está sem total e sem detalhamento.`);
-        bad = true;
-      }
-      if (!bad) teamScores[p].set(key, { tenths, items });
     }
-    for (const [key, name] of displayName) {
-      periods.forEach((period, p) => {
-        if (!teamScores[p].has(key) && errors.length === 0) {
-          errors.push(`Times: falta a linha de ${name} na etapa ${period}.`);
-        }
-      });
-    }
-  }
-
+  });
   const tierNumbers = [...new Set(tierOfTeam.values())].sort((a, b) => a - b);
   const tiers = tierNumbers.map((tier) => ({
     tier,
     teamNames: [...tierOfTeam.entries()].filter(([, t]) => t === tier).map(([key]) => displayName.get(key)!),
   }));
+  if (tiers.length === 0) errors.push("Níveis: informe os times de cada nível.");
   for (const t of tiers) {
-    if (t.teamNames.length < 2) errors.push(`Times: o nível ${t.tier} tem só um time.`);
+    if (t.teamNames.length < 2) errors.push(`Níveis: o nível ${t.tier} tem só um time.`);
   }
 
-  // ---------- palpites ----------
   const aliasOf = new Map<string, string>();
   for (const [alias, full] of Object.entries(input.aliases ?? {})) {
     if (tierOfTeam.has(normalizeName(full))) aliasOf.set(normalizeName(alias), normalizeName(full));
   }
+  const teamKey = (text: string): string | undefined => {
+    const key = normalizeName(text);
+    const resolved = aliasOf.get(key) ?? key;
+    return tierOfTeam.has(resolved) ? resolved : undefined;
+  };
+
+  // ---------- pontos dos times ----------
+  const teamScores: Map<string, ParsedTeamScore>[] = periods.map(() => new Map());
+  let period = periods.length === 1 ? 0 : -1;
+  let team: string | undefined;
+  // Depois de um nome de time não reconhecido, os lançamentos dele são pulados (o erro já foi apontado).
+  let skipping = false;
+  let lines = 0;
+  input.pointsText.split(/\r?\n/).forEach((line, i) => {
+    if (!line.trim()) return;
+    const where = `Pontos, linha ${i + 1}`;
+    // Título (etapa ou time) tem prioridade, mesmo que o nome comece com número ("2º turno").
+    const only = splitLine(line).filter((c) => c !== "");
+    const whole = only.length === 1 ? only[0] : line.trim();
+    const isTitle =
+      periods.some((name) => normalizeName(name) === normalizeName(whole)) || teamKey(whole) !== undefined;
+    const parsed = isTitle ? null : pointLine(line);
+    if (parsed === "bad-number") {
+      errors.push(`${where}: "${line.trim().split(/[\t;\s]/)[0]}" não é um número de pontos (use no máximo uma casa decimal).`);
+      return;
+    }
+    if (parsed === null) {
+      // Linha de título: nome de uma etapa ou de um time.
+      const title = isTitle ? whole : (only[0] ?? "");
+      const p = periods.findIndex((name) => normalizeName(name) === normalizeName(title));
+      if (p >= 0) {
+        period = p;
+        return;
+      }
+      team = teamKey(title);
+      skipping = !team;
+      if (!team) errors.push(`${where}: "${title}" não é uma etapa nem um time dos níveis informados.`);
+      return;
+    }
+    if (period < 0) {
+      if (!errors.some((e) => e.startsWith("Pontos: escreva"))) {
+        errors.push(`Pontos: escreva o nome da etapa (${periods.join(" ou ")}) numa linha antes dos times dela.`);
+      }
+      return;
+    }
+    if (skipping) return;
+    if (!team) {
+      if (!errors.some((e) => e.includes("antes do nome de um time"))) {
+        errors.push(`${where}: há um lançamento antes do nome de um time.`);
+      }
+      return;
+    }
+    const score = teamScores[period].get(team) ?? { tenths: 0, items: [] };
+    score.items.push(parsed);
+    score.tenths += parsed.tenths;
+    teamScores[period].set(team, score);
+    lines++;
+  });
+  if (lines === 0 && errors.length === 0) errors.push("Pontos: cole os lançamentos de cada time.");
+  periods.forEach((periodName, p) => {
+    const missing = [...tierOfTeam.keys()].filter((key) => !teamScores[p].has(key)).map((key) => displayName.get(key)!);
+    if (missing.length > 0) {
+      warnings.push(`Sem nenhum lançamento em ${periodName} (ficam com 0 ponto): ${missing.join(", ")}.`);
+    }
+  });
+
+  // ---------- palpites ----------
   const entryRows = rows(input.entriesText);
   const entries: ParsedEntry[] = [];
   const posCol: (number | undefined)[] = periods.map(() => undefined);
@@ -212,9 +247,8 @@ export function parseHistory(input: {
       let bad = false;
       tierNumbers.forEach((tier, i) => {
         const cell = cols[pickStart + i] ?? "";
-        let key = normalizeName(cell);
-        key = aliasOf.get(key) ?? key;
-        if (tierOfTeam.get(key) !== tier) {
+        const key = teamKey(cell);
+        if (!key || tierOfTeam.get(key) !== tier) {
           errors.push(
             cell
               ? `${where}: "${cell}" não é um time do nível ${tier}.`
@@ -266,6 +300,7 @@ export function parseHistory(input: {
   return {
     ok: true,
     data: {
+      warnings,
       periods,
       tiers,
       teamScores: teamScores.map(

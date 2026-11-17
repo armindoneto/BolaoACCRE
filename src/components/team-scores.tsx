@@ -4,14 +4,13 @@ import { cn } from "@/lib/cn";
 import { teamMap, tiersOf } from "@/lib/view";
 import { TeamBadge } from "./team-badge";
 
-/** Agrupa os lançamentos por regra: "Vitória ×4 = +12". */
+/** Agrupa os lançamentos: "Vitória ×4 = +12". Importados são agrupados pelo texto da descrição. */
 function summarize(items: LedgerItem[]) {
   const groups = new Map<string, { label: string; count: number; tenths: number; periodEnd: boolean }>();
   for (const item of items) {
-    const key = `${item.source}:${item.ruleIndex}`;
+    const key = item.source === "imported" ? `imported:${item.label}` : `${item.source}:${item.ruleIndex}`;
     const g = groups.get(key) ?? { label: item.label, count: 0, tenths: 0, periodEnd: item.source === "period_end" };
-    // Lançamento importado já vem somado: a quantidade (se houver) vem junto.
-    g.count += item.source === "imported" ? (item.count ?? 0) : 1;
+    g.count++;
     g.tenths += item.tenths;
     groups.set(key, g);
   }
@@ -43,6 +42,10 @@ export function TeamScores({ bundle, period }: { bundle: EditionBundle; period: 
                   if (item.matchId) byMatch.set(item.matchId, [...(byMatch.get(item.matchId) ?? []), item]);
                 }
                 const partial = projected.get(team.id) ?? [];
+                // Edição importada: os lançamentos como vieram da planilha (só vale listar se houver complemento).
+                const imported = score.items.some((i) => i.source === "imported" && i.detail)
+                  ? score.items.filter((i) => i.source === "imported")
+                  : [];
                 return (
                   <details key={team.id} className="card group">
                     <summary className="flex cursor-pointer list-none items-center gap-3 p-3 [&::-webkit-details-marker]:hidden">
@@ -86,6 +89,24 @@ export function TeamScores({ bundle, period }: { bundle: EditionBundle; period: 
                               <span className="tabular font-semibold">{formatSigned(item.tenths)}</span>
                             </p>
                           ))}
+                        </div>
+                      )}
+                      {imported.length > 0 && (
+                        <div>
+                          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">Lançamentos</p>
+                          <ul className="divide-y divide-border">
+                            {imported.map((item, i) => (
+                              <li key={i} className="flex items-center justify-between gap-2 py-1.5">
+                                <span className="min-w-0">
+                                  {item.label}
+                                  {item.detail && <span className="block truncate text-xs text-muted">{item.detail}</span>}
+                                </span>
+                                <span className={cn("tabular font-semibold", item.tenths < 0 && "text-danger")}>
+                                  {formatSigned(item.tenths)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                       {byMatch.size > 0 && (

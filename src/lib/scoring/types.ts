@@ -132,8 +132,8 @@ export interface LedgerItem {
   label: string;
   /** Pontos em décimos. */
   tenths: number;
-  /** Só em lançamentos importados: quantas vezes aconteceu (ex.: 12 vitórias). */
-  count?: number;
+  /** Só em lançamentos importados: complemento escrito na planilha (ex.: "22ª Rodada"). */
+  detail?: string;
 }
 
 export interface StandingRow {
@@ -212,8 +212,11 @@ export interface EngineResult {
 export interface ImportedTeamScore {
   /** Total em décimos. */
   tenths: number;
-  /** Detalhamento opcional: de onde vieram os pontos. */
-  items: { label: string; tenths: number; count?: number }[];
+  /**
+   * Lançamentos, na ordem da planilha. A descrição é texto livre: vale o que
+   * estiver escrito, sem ligação com nenhuma regra.
+   */
+  items: { label: string; tenths: number; detail?: string }[];
 }
 
 export interface ImportedPeriod {

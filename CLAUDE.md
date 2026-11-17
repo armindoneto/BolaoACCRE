@@ -137,7 +137,7 @@ Requisitos do motor:
 - A tabela do campeonato segue os critérios da CBF: pontos, vitórias, saldo de gols, gols pró, confronto direto, cartões vermelhos, cartões amarelos e sorteio. Os critérios ficam configuráveis por campeonato. Implemente pelo menos até gols pró e confronto direto, e permita que o admin defina a ordem manualmente nos casos restantes.
 - **Testes obrigatórios** para cada tipo de regra e para os desempates, incluindo: um empate total que divide a posição, o exemplo de premiação acima (três empatados em 2º e o próximo levando o 3º), um empate no último lugar, e um turno pendente por jogo adiado.
 
-**Edições antigas importadas** não passam pelo motor por jogo: guardam em `editions.imported_results` os pontos de cada time por etapa (com o detalhamento) e, se a planilha trouxer, a posição final de cada palpite. O total do palpite continua sendo a soma dos seus times (`src/lib/scoring/imported.ts`).
+**Edições antigas importadas** não passam pelo motor por jogo: guardam em `editions.imported_results` os lançamentos de pontos de cada time por etapa e, se a planilha trouxer, a posição final de cada palpite. Cada lançamento é pontos + descrição em **texto livre** (+ complemento opcional, como a rodada): vale o que estiver escrito, **sem ligação com nenhuma regra**, porque cada bolão antigo tinha regras próprias e não vale a pena cadastrá-las. O total do palpite continua sendo a soma dos seus times (`src/lib/scoring/imported.ts`).
 
 O recálculo é feito **sempre que o admin salva um resultado**. Recalcular a edição inteira é barato, então não vale otimizar. Os resultados podem ficar gravados em tabelas de cache (`team_scores`, `entry_scores`) ou ser calculados na hora. Comece pelo mais simples.
 
@@ -175,7 +175,7 @@ Públicas (sem login):
 
 Admin (`/admin`, exige login de admin):
 - **Lançar resultados**: lista de jogos por rodada com dois campos de placar em cada, salvando de uma vez e com o recálculo automático. Precisa ser rápido de usar no celular.
-- **Edições**: criar e editar edição, níveis e times, e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras. Botão para passar a edição ao próximo estado. **Importar bolão antigo**: cola as tabelas da planilha (times com pontos e detalhamento por etapa; palpites com participante, times e, opcionalmente, posição e pontos) e grava a edição direto no Histórico.
+- **Edições**: criar e editar edição, níveis e times, e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras. Botão para passar a edição ao próximo estado. **Importar bolão antigo**: cola os dados da planilha (níveis; lançamentos de pontos de cada time por etapa; palpites com participante, times e, opcionalmente, posição e pontos) e grava a edição direto no Histórico.
 - **Jogos**: cadastrar a tabela da temporada (importação por CSV).
 - **Palpites**: revisar os palpites que chegam (ajustar o nome e atribuir a um participante), criar, editar ou excluir. Exportar a classificação em PDF ou imagem para mandar no WhatsApp.
 - **Participantes**: cadastrar (só o nome), renomear e excluir participantes.

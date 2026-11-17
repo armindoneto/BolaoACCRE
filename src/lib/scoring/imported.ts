@@ -39,7 +39,7 @@ export function buildImportedResult(input: {
           ruleIndex,
           label: item.label,
           tenths: item.tenths,
-          count: item.count,
+          detail: item.detail,
         }));
         teamScores[team.id] = { teamId: team.id, tier: team.tier, tenths: score?.tenths ?? 0, items };
       }

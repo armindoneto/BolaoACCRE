@@ -68,23 +68,41 @@ Para um novo bolão, use **Nova edição a partir de uma anterior** e ajuste reg
 
 Em `/admin` → **Edições** → **Importar bolão antigo**. Copie as células da planilha e cole (o Excel separa as colunas por tabulação; ponto e vírgula também funciona). O botão **Conferir dados** aponta os problemas e mostra um resumo antes de gravar.
 
-**Tabela de times**, uma linha por time em cada etapa. As quatro primeiras colunas são fixas; as seguintes são o detalhamento, com o nome que estiver no cabeçalho:
+**1. Níveis e times**, uma linha por nível:
 
-| nível | time | etapa | total | Vitórias | Empates | Goleadas | … |
-|---|---|---|---|---|---|---|---|
-| 1 | Flamengo | 1 | 38,5 | 30 | 4 | 4,5 | |
-| 1 | Flamengo | 2 | 35 | 27 | 6 | 2 | |
+```
+1: Flamengo, Palmeiras
+2: Cruzeiro, Mirassol
+```
 
-- "etapa" é o número (1, 2) ou o nome da etapa.
-- O total precisa bater com a soma do detalhamento. Sem detalhamento, preencha só o total.
+**2. Pontos de cada time**, como uma lista de lançamentos. Escreva o nome da etapa numa linha, depois o nome do time e, embaixo, os lançamentos dele: pontos, descrição e, se quiser, um complemento (a rodada).
 
-**Tabela de palpites**, uma linha por palpite:
+```
+1º turno
+Flamengo
+3,0	Vitória	1ª Rodada
+0,5	Vitória fora de casa	1ª Rodada
+Palmeiras
+1,0	Empate	1ª Rodada
+2º turno
+Flamengo
+1,0	Empate	21ª Rodada
+3,0	Vitória	22ª Rodada
+```
+
+- A descrição aparece no site **exatamente como estiver escrita**. Nenhuma regra é aplicada nem precisa ser cadastrada: cada bolão antigo pode ter os seus próprios tipos de ponto.
+- O total do time na etapa é a soma dos lançamentos.
+- A linha com o nome da etapa vale para todos os times que vêm depois dela. Com uma etapa só, ela é dispensável.
+- O time pode ser escrito pelo nome, nome curto ou sigla.
+- Um time sem nenhum lançamento numa etapa fica com zero, e o resumo avisa.
+
+**3. Palpites**, uma linha por palpite:
 
 | palpite | participante | N1 | N2 | … | N10 | pos 1 | pts 1 | pos 2 | pts 2 |
 |---|---|---|---|---|---|---|---|---|---|
 | João 1 | João Silva | Flamengo | Cruzeiro | … | Remo | 1 | 312,5 | 7 | 280 |
 
-- Os times vão na ordem dos níveis e podem ser escritos pelo nome, nome curto ou sigla.
+- Os times vão na ordem dos níveis.
 - `pos N` (posição final na etapa N) é opcional. Sem ela, a posição sai do total de pontos, com desempate pelo time do nível 1, depois nível 2, e assim por diante.
 - `pts N` é opcional e serve só para conferência: o site avisa se não bater com a soma dos times do palpite.
 - Participantes que ainda não existem são cadastrados automaticamente; os que já existem são reconhecidos pelo nome.

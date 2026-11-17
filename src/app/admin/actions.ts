@@ -347,7 +347,10 @@ export interface HistoryImportForm {
   season: number;
   /** Nomes das etapas, separados por vírgula. */
   periods: string;
-  teamsText: string;
+  /** Uma linha por nível: "1: Flamengo, Palmeiras". */
+  tiersText: string;
+  /** Lançamentos de cada time, com linhas de etapa e de time. */
+  pointsText: string;
   entriesText: string;
 }
 
@@ -363,6 +366,7 @@ export type HistoryImportResult =
         entries: number;
         participants: string[];
         newParticipants: string[];
+        warnings: string[];
         periods: { name: string; top: string[]; last: string[]; usesPositions: boolean }[];
       };
     };
@@ -393,7 +397,8 @@ export async function importHistoricEdition(form: HistoryImportForm, save: boole
   }
   const parsed = parseHistory({
     periodNames: form.periods.split(","),
-    teamsText: form.teamsText,
+    tiersText: form.tiersText,
+    pointsText: form.pointsText,
     entriesText: form.entriesText,
     aliases,
   });
@@ -434,6 +439,7 @@ export async function importHistoricEdition(form: HistoryImportForm, save: boole
     entries: data.entries.length,
     participants: participantNames,
     newParticipants: participantNames.filter((n) => !knownByName.has(normalizeName(n))),
+    warnings: data.warnings,
     periods: preview.periods.map((period, p) => {
       const lastPosition = Math.max(...period.ranking.map((r) => r.position));
       const line = (r: (typeof period.ranking)[number]) => `${r.position}º ${r.entryId} (${formatPoints(r.tenths)} pts)`;
