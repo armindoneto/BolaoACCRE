@@ -43,7 +43,7 @@ Quando uma atualização do site trouxer um arquivo novo em `supabase/migrations
 - **Só o administrador cadastra participantes**, em `/admin` → **Participantes**. Basta o nome. Os participantes não têm conta.
 - **Quem palpita pelo site** só dá um nome ao palpite e escolhe os times. O palpite chega sem participante.
 - **Revisão**: em `/admin` → **Palpites**, os palpites sem participante aparecem primeiro. Ali você ajusta o nome e escolhe a quem pertence.
-- Ao enviar, a pessoa recebe um **link de edição** daquele palpite (`/meu/...`), para mudar os times até o prazo. O admin também consegue copiar esse link.
+- Depois de enviado, **só o administrador** altera ou exclui um palpite.
 - A página **Participantes** lista quem tem palpite na edição em vigor, com os nomes dos palpites; o **perfil** mostra os palpites atuais, o histórico e os troféus: ouro (1º), prata (2º), bronze (3º) e vermelho (último), um por palpite premiado em cada turno encerrado.
 
 ## Como o código está organizado

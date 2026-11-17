@@ -38,7 +38,7 @@ export default async function PalpitePage() {
       />
       <PickForm tiers={pickFormTiers(bundle)} submitLabel="Enviar palpite" onSave={submitEntry} />
       <p className="text-center text-sm">
-        Quer fazer mais de um? É só enviar este e voltar aqui.{" "}
+        Confira bem antes de enviar: depois, só o organizador consegue alterar.{" "}
         <Link href="/regras" className="font-semibold text-primary">Como funciona a pontuação?</Link>
       </p>
     </div>

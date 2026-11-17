@@ -16,7 +16,6 @@ import {
 } from "@/lib/entries";
 import { parseBrDate } from "@/lib/csv";
 import { parseRules } from "@/lib/scoring";
-import { siteUrl } from "@/lib/site-url";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -131,13 +130,6 @@ export async function adminDeleteEntry(entryId: string): Promise<void> {
   await requireAdmin();
   await repo().deleteEntry(entryId);
   refresh();
-}
-
-/** Link de edição de um palpite, para o admin repassar a quem palpitou. */
-export async function adminEntryLink(entryId: string): Promise<string | null> {
-  await requireAdmin();
-  const token = await repo().getEntryToken(entryId);
-  return token ? `${await siteUrl()}/meu/${token}` : null;
 }
 
 // ---------- Participantes ----------

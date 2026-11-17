@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_STANDINGS_CRITERIA, selectionKey, type Rules } from "@/lib/scoring";
 import type { Edition, EditionBundle, EditionTeam, Entry, Match, Repo } from "./types";
-import { newToken, normalizeName, teamCodeFromName } from "./util";
+import { normalizeName, teamCodeFromName } from "./util";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -176,7 +176,6 @@ export const supabaseRepo: Repo = {
   },
 
   async createEntry(input) {
-    const token = newToken();
     const row = check(
       await db()
         .from("entries")
@@ -185,14 +184,13 @@ export const supabaseRepo: Repo = {
           participant_id: input.participantId,
           name: input.name,
           selection_key: selectionKey(input.picks),
-          access_token: token,
         })
         .select("id")
         .single(),
     );
     await writePicks(row.id, input.picks);
     const full = check(await db().from("entries").select(ENTRY_COLUMNS).eq("id", row.id).single());
-    return { entry: mapEntry(full), token };
+    return mapEntry(full);
   },
 
   async updateEntry(entryId, patch) {
@@ -206,18 +204,6 @@ export const supabaseRepo: Repo = {
 
   async deleteEntry(entryId) {
     check(await db().from("entries").delete().eq("id", entryId));
-  },
-
-  async getEntryByToken(token) {
-    const row = check(
-      await db().from("entries").select("id, edition_id").eq("access_token", token).maybeSingle(),
-    );
-    return row ? { editionId: row.edition_id, entryId: row.id } : null;
-  },
-
-  async getEntryToken(entryId) {
-    const row = check(await db().from("entries").select("access_token").eq("id", entryId).maybeSingle());
-    return row?.access_token ?? null;
   },
 
   async listParticipants() {

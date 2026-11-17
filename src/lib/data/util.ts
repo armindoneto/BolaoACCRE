@@ -1,9 +1,3 @@
-import { randomBytes } from "node:crypto";
-
-export function newToken(): string {
-  return randomBytes(12).toString("base64url");
-}
-
 /** Normaliza nomes para comparação: sem acento, minúsculo, sem espaços extras. */
 export function normalizeName(name: string): string {
   return name

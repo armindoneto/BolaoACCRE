@@ -134,13 +134,9 @@ export interface Repo {
   /** Substitui todos os jogos da edição pelos informados. */
   replaceMatches(editionId: string, rows: MatchImportRow[]): Promise<void>;
 
-  /** Devolve também o token do link de edição do palpite. */
-  createEntry(input: NewEntryInput): Promise<{ entry: Entry; token: string }>;
+  createEntry(input: NewEntryInput): Promise<Entry>;
   updateEntry(entryId: string, patch: EntryPatch): Promise<void>;
   deleteEntry(entryId: string): Promise<void>;
-  /** Palpite dono de um link de edição (/meu/[token]). */
-  getEntryByToken(token: string): Promise<{ editionId: string; entryId: string } | null>;
-  getEntryToken(entryId: string): Promise<string | null>;
 
   listParticipants(): Promise<Participant[]>;
   getParticipant(participantId: string): Promise<ParticipantRef | null>;

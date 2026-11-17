@@ -145,7 +145,7 @@ O recálculo é feito **sempre que o admin salva um resultado**. Recalcular a ed
 - `edition_teams`: edition_id, team_id, tier (nível)
 - `matches`: id, edition_id, rodada, data, mandante_id, visitante_id, gols_mandante, gols_visitante (nulos até o resultado)
 - `participants`: id, nome de exibição, contato opcional (`user_id` existe, mas não é usado enquanto os participantes não têm conta)
-- `entries` (palpites): id, edition_id, `name` (nome do palpite), participant_id (nulo até o admin atribuir), `selection_key` (chave canônica para achar palpites repetidos), token do link de edição, criado em
+- `entries` (palpites): id, edition_id, `name` (nome do palpite), participant_id (nulo até o admin atribuir), `selection_key` (chave canônica para achar palpites repetidos), criado em (a coluna `access_token` existe, mas não é usada)
 - `entry_picks`: entry_id, tier, team_id
 - `admins`: user_id
 
@@ -165,8 +165,7 @@ Públicas (sem login):
 - `/campeonato`: tabela do turno e resultados por rodada.
 - `/regras`: as regras da edição, geradas a partir do JSON em linguagem simples.
 - `/historico` e `/historico/[edicao]`: edições anteriores, com os premiados de cada turno (1º, 2º, 3º e último) e a classificação final de cada turno.
-- `/palpite`: formulário de palpite (só quando a edição está `open_for_entries`).
-- `/meu/[token]`: página de um palpite, aberta pelo link de edição entregue no envio.
+- `/palpite`: formulário de palpite (só quando a edição está `open_for_entries`), seguido de uma tela de confirmação.
 
 Admin (`/admin`, exige login de admin):
 - **Lançar resultados**: lista de jogos por rodada com dois campos de placar em cada, salvando de uma vez e com o recálculo automático. Precisa ser rápido de usar no celular.
@@ -185,7 +184,7 @@ Muitos participantes são leigos digitalmente. **Nenhuma ação pública exige c
 - **Só o administrador cadastra participantes.** O cadastro é apenas o nome. Cada participante tem um perfil público e pode ter vários palpites.
 - **Palpite pelo site:** no `/palpite`, a pessoa só dá um nome ao palpite e escolhe os times. O palpite entra **sem participante**.
 - **Revisão pelo admin:** depois, o administrador ajusta os nomes dos palpites e atribui cada um a um participante já cadastrado.
-- Ao enviar, a pessoa recebe um **link de edição do palpite** (`/meu/[token]`), com botão de "copiar link / enviar no WhatsApp", para mudar o palpite até o prazo.
+- **Depois de enviado, só o administrador altera ou exclui um palpite.** Não há link de edição para quem palpitou.
 - Dois palpites da mesma edição não podem ter o mesmo nome.
 - O admin também pode cadastrar palpites por qualquer pessoa.
 - **Palpite repetido:** antes de confirmar, verifique a `selection_key`. Se já existir um palpite igual, avise com uma mensagem amigável ("Já existe um palpite com exatamente esses times. Se terminarem empatados, dividem a posição e o prêmio. Quer manter ou trocar algum time?"). O aviso não bloqueia o envio.
@@ -211,7 +210,7 @@ Muitos participantes são leigos digitalmente. **Nenhuma ação pública exige c
 2. **Motor de cálculo + testes** (antes de qualquer tela).
 3. Admin: lançar resultados e cadastrar palpites.
 4. Páginas públicas: classificação, times, campeonato e regras.
-5. Formulário de palpite sem conta, com aviso de repetido e link de edição.
+5. Formulário de palpite sem conta, com aviso de repetido.
 6. Participantes cadastrados pelo admin, revisão dos palpites, perfis e troféus.
 7. Histórico e importação das edições antigas (planilhas).
 8. (Futuro) Importar resultados automaticamente de uma API de futebol.

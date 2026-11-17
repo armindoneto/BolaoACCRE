@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { selectionKey } from "@/lib/scoring";
 import { buildDemoBundles, DEMO_PARTICIPANTS } from "./demo";
 import type { EditionBundle, Entry, EditionTeam, Repo } from "./types";
-import { newToken, normalizeName, teamCodeFromName } from "./util";
+import { normalizeName, teamCodeFromName } from "./util";
 
 /**
  * Repositório em memória, usado no MODO DEMONSTRAÇÃO (sem Supabase
@@ -16,8 +16,6 @@ interface StoredParticipant {
 interface Store {
   bundles: Map<string, EditionBundle>;
   participants: Map<string, StoredParticipant>;
-  /** id do palpite -> token do link de edição */
-  tokens: Map<string, string>;
 }
 
 const g = globalThis as unknown as { __bolaoDemoStore3?: Store };
@@ -27,20 +25,9 @@ function store(): Store {
     g.__bolaoDemoStore3 = {
       bundles: new Map(buildDemoBundles().map((b) => [b.edition.id, b])),
       participants: new Map(DEMO_PARTICIPANTS.map((p) => [p.id, { ...p }])),
-      tokens: new Map(),
     };
   }
   return g.__bolaoDemoStore3;
-}
-
-function tokenFor(entryId: string): string {
-  const s = store();
-  let token = s.tokens.get(entryId);
-  if (!token) {
-    token = newToken();
-    s.tokens.set(entryId, token);
-  }
-  return token;
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -115,7 +102,7 @@ export const memoryRepo: Repo = {
       createdAt: new Date().toISOString(),
     };
     bundle.entries.push(entry);
-    return { entry: clone(entry), token: tokenFor(entry.id) };
+    return clone(entry);
   },
 
   async updateEntry(entryId, patch) {
@@ -135,19 +122,6 @@ export const memoryRepo: Repo = {
   async deleteEntry(entryId) {
     const { bundle } = findEntry(entryId);
     bundle.entries = bundle.entries.filter((e) => e.id !== entryId);
-  },
-
-  async getEntryByToken(token) {
-    const entryId = [...store().tokens.entries()].find(([, t]) => t === token)?.[0];
-    if (!entryId) return null;
-    for (const bundle of store().bundles.values()) {
-      if (bundle.entries.some((e) => e.id === entryId)) return { editionId: bundle.edition.id, entryId };
-    }
-    return null;
-  },
-
-  async getEntryToken(entryId) {
-    return tokenFor(findEntry(entryId).entry.id);
   },
 
   async listParticipants() {

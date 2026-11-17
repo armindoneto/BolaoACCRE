@@ -7,7 +7,6 @@ import { useState, useTransition } from "react";
 import { TeamBadge, type BadgeTeam } from "@/components/team-badge";
 import { cn } from "@/lib/cn";
 import { adminDeleteEntry, adminReviewEntry } from "../actions";
-import { LinkButton } from "./link-button";
 
 /** Um palpite na lista do admin: ajustar o nome e atribuir a um participante, ali mesmo. */
 export function ReviewRow({
@@ -53,7 +52,6 @@ export function ReviewRow({
           {repeated && <span className="chip bg-border/60 text-fg">times repetidos</span>}
         </div>
         <div className="flex shrink-0 gap-1">
-          <LinkButton entryId={entry.id} />
           <Link
             href={`/admin/palpites/${entry.id}?edicao=${editionId}`}
             aria-label="Mudar os times"
