@@ -13,10 +13,10 @@ export default async function EntrarPage({
   if (isDemoMode()) {
     return <EmptyState title="Login indisponível">No modo demonstração não existe login.</EmptyState>;
   }
-  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/meus-palpites";
+  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
   return (
     <div className="mx-auto max-w-sm space-y-4">
-      <PageTitle title="Entrar" subtitle="Sem senha: use sua conta Google ou receba um link por e-mail." />
+      <PageTitle title="Acesso do administrador" subtitle="Receba um link de acesso no seu e-mail. Não precisa de senha." />
       {erro && (
         <p className="rounded-xl bg-danger/10 p-3 text-sm font-medium text-danger">
           Não foi possível entrar. Tente de novo.
@@ -24,7 +24,7 @@ export default async function EntrarPage({
       )}
       <LoginForm next={safeNext} />
       <p className="text-center text-xs text-muted">
-        Ter conta é opcional. Para palpitar e acompanhar, não precisa.
+        Esta página é só para o organizador. Para palpitar e acompanhar o bolão, não precisa entrar.
       </p>
     </div>
   );

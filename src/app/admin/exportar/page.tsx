@@ -41,7 +41,7 @@ export default async function ExportarPage({
           <thead>
             <tr className="border-b-2 border-black text-left">
               <th className="w-8 py-1">#</th>
-              <th className="py-1">Participante</th>
+              <th className="py-1">Palpite</th>
               <th className="py-1">Times</th>
               <th className="w-12 py-1 text-right">Pts</th>
             </tr>
@@ -55,7 +55,9 @@ export default async function ExportarPage({
                   <td className="py-1">
                     {style && `${style.icon} `}
                     {row.name}
-                    {row.nickname && <span className="font-normal text-neutral-600"> ({row.nickname})</span>}
+                    {row.participantName && row.participantName !== row.name && (
+                      <span className="font-normal text-neutral-600"> ({row.participantName})</span>
+                    )}
                   </td>
                   <td className="py-1 text-[10px] tracking-tight text-neutral-700">
                     {row.teams.map((t) => t.code).join(" ")}

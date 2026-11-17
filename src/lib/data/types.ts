@@ -50,9 +50,11 @@ export interface Match {
 
 export interface Entry {
   id: string;
-  participantId: string;
-  participantName: string;
-  nickname: string | null;
+  /** Nome do palpite, dado por quem palpitou e revisado pelo administrador. */
+  name: string;
+  /** Participante dono do palpite; null enquanto o administrador não atribuir. */
+  participantId: string | null;
+  participantName: string | null;
   selectionKey: string;
   /** nível -> id do time */
   picks: Record<number, string>;
@@ -83,9 +85,16 @@ export interface MatchImportRow {
 
 export interface NewEntryInput {
   editionId: string;
-  participantId: string;
-  nickname: string | null;
+  name: string;
+  participantId: string | null;
   picks: Record<number, string>;
+}
+
+export interface EntryPatch {
+  name?: string;
+  picks?: Record<number, string>;
+  /** null tira o palpite do participante. */
+  participantId?: string | null;
 }
 
 export interface EditionPatch {
@@ -106,14 +115,13 @@ export interface TeamPatch {
   color2: string;
 }
 
-/** Um participante do bolão: existe com ou sem conta, e atravessa as edições. */
+/** Um participante do bolão: cadastrado pelo administrador, atravessa as edições. */
 export interface ParticipantRef {
   id: string;
   name: string;
 }
 
 export interface Participant extends ParticipantRef {
-  hasAccount: boolean;
   /** Total de palpites, somando todas as edições. */
   entryCount: number;
 }
@@ -127,26 +135,15 @@ export interface Repo {
   replaceMatches(editionId: string, rows: MatchImportRow[]): Promise<void>;
 
   createEntry(input: NewEntryInput): Promise<Entry>;
-  /** Com `participantId`, o palpite passa para outro participante. */
-  updateEntry(
-    entryId: string,
-    patch: { nickname: string | null; picks: Record<number, string>; participantId?: string },
-  ): Promise<void>;
+  updateEntry(entryId: string, patch: EntryPatch): Promise<void>;
   deleteEntry(entryId: string): Promise<void>;
 
   listParticipants(): Promise<Participant[]>;
   getParticipant(participantId: string): Promise<ParticipantRef | null>;
-  /** Dono de um link pessoal (/meu/[token]). */
-  getParticipantByToken(token: string): Promise<ParticipantRef | null>;
-  getParticipantByUser(userId: string): Promise<ParticipantRef | null>;
-  getParticipantToken(participantId: string): Promise<string | null>;
-  createParticipant(name: string, userId?: string | null): Promise<ParticipantRef & { token: string }>;
+  createParticipant(name: string): Promise<ParticipantRef>;
   renameParticipant(participantId: string, name: string): Promise<void>;
-  /** Passa todos os palpites de `fromId` para `intoId` e apaga `fromId`. */
-  mergeParticipants(fromId: string, intoId: string): Promise<void>;
   /** Só apaga participantes sem nenhum palpite. */
   deleteParticipant(participantId: string): Promise<void>;
-  linkParticipantToUser(participantId: string, userId: string): Promise<void>;
 
   updateEdition(editionId: string, patch: EditionPatch): Promise<void>;
   /** Define os times de cada nível; cria os times que ainda não existem. */

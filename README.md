@@ -24,7 +24,7 @@ O bolão usa um schema próprio do Postgres, chamado `bolao`. Assim ele pode div
 2. No **SQL Editor**, rode, em ordem de data, o conteúdo de cada arquivo de `supabase/migrations/` e depois o de `supabase/seed.sql` (cria os times, os níveis e as regras do Brasileirão 2026). Nada fora do schema `bolao` é alterado.
 3. Em **Project Settings → Data API → Exposed schemas**, adicione `bolao` e salve. Sem isso o site não enxerga as tabelas.
 4. Copie `.env.example` para `.env.local` e preencha com as chaves do projeto (Project Settings → API). Configure as mesmas variáveis na Vercel.
-5. Em **Authentication → URL Configuration**, adicione `https://SEU-SITE/auth/callback` em *Redirect URLs* (não precisa trocar o *Site URL* do outro sistema). O login por link no e-mail já funciona; o login com Google precisa estar ativado em Authentication → Providers.
+5. Em **Authentication → URL Configuration**, adicione `https://SEU-SITE/auth/callback` em *Redirect URLs* (não precisa trocar o *Site URL* do outro sistema). O login (só do administrador) é por link enviado ao e-mail.
 6. Entre no site em `/entrar` com o seu e-mail e depois rode no SQL Editor:
    ```sql
    insert into bolao.admins (user_id)
@@ -40,10 +40,11 @@ Quando uma atualização do site trouxer um arquivo novo em `supabase/migrations
 
 ## Participantes, palpites e troféus
 
-- Cada pessoa tem **um cadastro** (com ou sem conta) que reúne os palpites de todas as edições. Quem tem mais de um palpite numa edição aparece numerado: "Fulano 1", "Fulano 2".
-- O **link pessoal** (`/meu/...`) é do participante e vale para sempre: serve para ver, editar e fazer novos palpites nas próximas edições.
-- O **perfil** (`/participante/...`) é público e mostra os palpites atuais, o histórico e os troféus: ouro (1º), prata (2º), bronze (3º) e vermelho (último), um por palpite premiado em cada turno encerrado.
-- Em `/admin` → **Participantes**, o administrador cadastra pessoas, corrige nomes, copia o link pessoal e **junta** cadastros repetidos da mesma pessoa.
+- **Só o administrador cadastra participantes**, em `/admin` → **Participantes**. Basta o nome. Os participantes não têm conta.
+- **Quem palpita pelo site** só dá um nome ao palpite e escolhe os times. O palpite chega sem participante.
+- **Revisão**: em `/admin` → **Palpites**, os palpites sem participante aparecem primeiro. Ali você ajusta o nome e escolhe a quem pertence.
+- Depois de enviado, **só o administrador** altera ou exclui um palpite.
+- A página **Participantes** lista quem tem palpite na edição em vigor, com os nomes dos palpites; o **perfil** mostra os palpites atuais, o histórico e os troféus: ouro (1º), prata (2º), bronze (3º) e vermelho (último), um por palpite premiado em cada turno encerrado.
 
 ## Como o código está organizado
 

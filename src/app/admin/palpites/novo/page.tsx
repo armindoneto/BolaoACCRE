@@ -15,17 +15,19 @@ export default async function NovoPalpitePage({
   const bundle = await adminBundle(params.edicao);
   if (!bundle) return <EmptyState title="Nenhuma edição cadastrada" />;
   const participants = await repo().listParticipants();
+  const chosen = participants.find((p) => p.id === params.participante);
+  // Sugestão de nome: "Fulano" ou "Fulano 2", conforme os palpites que a pessoa já tem.
+  const existing = chosen ? bundle.entries.filter((e) => e.participantId === chosen.id).length : 0;
   return (
     <div className="space-y-4">
       <EditionHeader edition={bundle.edition} title="Novo palpite" />
-      <p className="text-sm text-muted">
-        Escolha de quem é o palpite. Uma pessoa pode ter vários: eles aparecem numerados (Fulano 1, Fulano 2…).
-      </p>
       <PickForm
         tiers={pickFormTiers(bundle)}
-        askName
         participants={participants.map((p) => ({ id: p.id, name: p.name }))}
-        initialParticipantId={participants.some((p) => p.id === params.participante) ? params.participante : ""}
+        initial={{
+          name: chosen ? (existing > 0 ? `${chosen.name} ${existing + 1}` : chosen.name) : "",
+          participantId: chosen?.id ?? "",
+        }}
         submitLabel="Cadastrar palpite"
         onSave={adminCreateEntry.bind(null, bundle.edition.id)}
       />

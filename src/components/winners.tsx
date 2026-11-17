@@ -39,7 +39,9 @@ export function Winners({
                   {winners.length > 1 && ` · prêmio dividido por ${winners.length}`}
                 </p>
                 <p className="font-semibold">
-                  {winners.map((w) => (w.nickname ? `${w.name} (${w.nickname})` : w.name)).join(", ")}
+                  {winners
+                    .map((w) => (w.participantName && w.participantName !== w.name ? `${w.name} (${w.participantName})` : w.name))
+                    .join(", ")}
                 </p>
                 <p className="tabular text-sm text-muted">{winners[0].points} pts</p>
               </div>

@@ -29,7 +29,7 @@ export default async function Home({
   const open = entriesOpen(edition);
   // Enquanto os palpites estão abertos, as escolhas dos outros ficam escondidas.
   const hidePicks = edition.status === "open_for_entries";
-  const participants = new Set(bundle.entries.map((e) => e.participantId)).size;
+  const participants = new Set(bundle.entries.map((e) => e.participantId).filter(Boolean)).size;
 
   return (
     <div className="space-y-4">
@@ -98,7 +98,7 @@ export default async function Home({
           </section>
           <p className="no-print hidden flex-col gap-2 lg:flex">
             <Link href="/regras" className="btn-outline">Ver as regras</Link>
-            <Link href="/meus-palpites" className="btn-outline">Meus palpites</Link>
+            <Link href="/participantes" className="btn-outline">Participantes</Link>
           </p>
         </aside>
 
@@ -116,7 +116,6 @@ export default async function Home({
                   .map((r) => (
                     <li key={r.entryId} className="chip bg-border/60 text-fg">
                       {r.name}
-                      {r.nickname && <span className="font-normal text-muted">({r.nickname})</span>}
                     </li>
                   ))}
               </ul>
@@ -129,7 +128,6 @@ export default async function Home({
 
       <p className="no-print flex flex-wrap justify-center gap-x-4 gap-y-1 pt-2 text-sm lg:hidden">
         <Link href="/regras" className="font-semibold text-primary">Ver as regras</Link>
-        <Link href="/meus-palpites" className="font-semibold text-primary">Meus palpites</Link>
       </p>
     </div>
   );

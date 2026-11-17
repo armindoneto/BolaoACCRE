@@ -9,11 +9,6 @@ export function LoginForm({ next }: { next: string }) {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const redirectTo = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
-  async function withGoogle() {
-    const supabase = createBrowserAuthClient();
-    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectTo() } });
-  }
-
   async function withEmail(e: React.FormEvent) {
     e.preventDefault();
     setStatus("sending");
@@ -39,12 +34,6 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <div className="card space-y-4 p-4">
-      <button type="button" onClick={withGoogle} className="btn-outline min-h-12 w-full">
-        Entrar com Google
-      </button>
-      <div className="flex items-center gap-3 text-xs text-muted">
-        <span className="h-px flex-1 bg-border" /> ou <span className="h-px flex-1 bg-border" />
-      </div>
       <form onSubmit={withEmail} className="space-y-2">
         <label htmlFor="email" className="label">Seu e-mail</label>
         <input

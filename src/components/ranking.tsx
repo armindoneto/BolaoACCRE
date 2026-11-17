@@ -14,16 +14,15 @@ function normalize(text: string) {
 
 export function RankingRow({ row, showPicks }: { row: RankingViewRow; showPicks: boolean }) {
   const style = prizeStyle(row.prizes[0]);
-  return (
-    <Link
-      href={`/participante/${row.participantId}`}
-      className={cn(
-        // Celular: nome e pontos em cima, escudos embaixo. Desktop: tudo numa linha.
-        "card grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 transition hover:border-primary/50",
-        showPicks && "lg:grid-cols-[auto_minmax(0,15rem)_minmax(0,1fr)_4.5rem] lg:gap-x-4 lg:px-4",
-        style?.row,
-      )}
-    >
+  const className = cn(
+    // Celular: nome e pontos em cima, escudos embaixo. Desktop: tudo numa linha.
+    "card grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 transition",
+    showPicks && "lg:grid-cols-[auto_minmax(0,15rem)_minmax(0,1fr)_4.5rem] lg:gap-x-4 lg:px-4",
+    row.participantId && "hover:border-primary/50",
+    style?.row,
+  );
+  const content = (
+    <>
       <span
         className={cn(
           "tabular flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
@@ -36,7 +35,7 @@ export function RankingRow({ row, showPicks }: { row: RankingViewRow; showPicks:
         <p className="truncate font-semibold leading-tight">{row.name}</p>
         <p className="truncate text-xs text-muted">
           {[
-            row.nickname,
+            row.participantName && row.participantName !== row.name && row.participantName,
             style && `${style.icon} ${style.label}`,
             row.sharedWith > 1 && `empatado com ${row.sharedWith - 1}`,
           ]
@@ -58,7 +57,15 @@ export function RankingRow({ row, showPicks }: { row: RankingViewRow; showPicks:
           ))}
         </div>
       )}
+    </>
+  );
+  // Palpite ainda sem participante não tem perfil para abrir.
+  return row.participantId ? (
+    <Link href={`/participante/${row.participantId}`} className={className}>
+      {content}
     </Link>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -68,7 +75,7 @@ export function RankingList({ rows, showPicks = true }: { rows: RankingViewRow[]
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
     if (!q) return rows;
-    return rows.filter((r) => normalize(`${r.name} ${r.nickname ?? ""}`).includes(q));
+    return rows.filter((r) => normalize(`${r.name} ${r.participantName ?? ""}`).includes(q));
   }, [rows, query]);
 
   return (
@@ -79,7 +86,7 @@ export function RankingList({ rows, showPicks = true }: { rows: RankingViewRow[]
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar pelo nome"
+          placeholder="Buscar palpite ou participante"
           className="input pl-9"
         />
       </label>

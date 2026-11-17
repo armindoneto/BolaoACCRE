@@ -18,28 +18,22 @@ export interface PickFormTier {
  */
 export function PickForm({
   tiers,
-  askName,
   initial,
   submitLabel,
   onSave,
   participants,
-  initialParticipantId,
 }: {
   tiers: PickFormTier[];
-  askName: boolean;
-  initial?: { name?: string; nickname?: string | null; picks?: Record<number, string> };
+  initial?: { name?: string; picks?: Record<number, string>; participantId?: string | null };
   submitLabel: string;
   onSave: (payload: EntryPayload) => Promise<SaveResult>;
-  /** Só no admin: lista de participantes já cadastrados para escolher. */
+  /** Só no admin: participantes cadastrados, para atribuir o palpite. */
   participants?: { id: string; name: string }[];
-  initialParticipantId?: string;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
-  // "" = participante novo (o admin digita o nome).
-  const [participantId, setParticipantId] = useState(initialParticipantId ?? "");
-  const needsName = participants ? participantId === "" : askName;
-  const [nickname, setNickname] = useState(initial?.nickname ?? "");
+  // "" = sem participante (ainda não atribuído).
+  const [participantId, setParticipantId] = useState(initial?.participantId ?? "");
   const [picks, setPicks] = useState<Record<number, string>>(initial?.picks ?? {});
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
@@ -50,8 +44,8 @@ export function PickForm({
 
   function save(confirmDuplicate: boolean) {
     setError(null);
-    if (needsName && name.trim().length < 2) {
-      setError(participants ? "Escolha um participante ou escreva o nome do novo." : "Escreva seu nome para continuar.");
+    if (name.trim().length < 2) {
+      setError("Dê um nome ao palpite para continuar.");
       document.getElementById("pick-name")?.focus();
       return;
     }
@@ -63,8 +57,7 @@ export function PickForm({
       try {
         const result = await onSave({
           name,
-          participantId: participants && participantId ? participantId : undefined,
-          nickname,
+          participantId: participants ? participantId || null : undefined,
           picks,
           confirmDuplicate,
         });
@@ -93,6 +86,26 @@ export function PickForm({
       }}
     >
       <div className="card grid gap-3 p-4 lg:grid-cols-2">
+        <div>
+          <label htmlFor="pick-name" className="label">Nome do palpite</label>
+          <input
+            id="pick-name"
+            className="input"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
+            placeholder="Ex.: João 1, Palpite da sorte…"
+            autoComplete="off"
+            maxLength={40}
+          />
+          {!participants && (
+            <p className="mt-1 text-xs text-muted">
+              É assim que ele aparece na classificação. Use um nome que ajude a saber de quem é.
+            </p>
+          )}
+        </div>
         {participants && (
           <div>
             <label htmlFor="pick-participant" className="label">Participante</label>
@@ -105,42 +118,13 @@ export function PickForm({
                 setError(null);
               }}
             >
-              <option value="">➕ Novo participante…</option>
+              <option value="">— Sem participante (atribuir depois) —</option>
               {participants.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </div>
         )}
-        {needsName && (
-          <div>
-            <label htmlFor="pick-name" className="label">
-              {participants ? "Nome do novo participante" : "Seu nome"}
-            </label>
-            <input
-              id="pick-name"
-              className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={participants ? "Nome de quem está palpitando" : "Como o pessoal te conhece"}
-              autoComplete={participants ? "off" : "name"}
-              maxLength={60}
-            />
-          </div>
-        )}
-        <div>
-          <label htmlFor="pick-nickname" className="label">
-            Apelido do palpite <span className="font-normal text-muted">(opcional)</span>
-          </label>
-          <input
-            id="pick-nickname"
-            className="input"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="Ex.: Palpite da sorte"
-            maxLength={40}
-          />
-        </div>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
