@@ -25,9 +25,17 @@ export default async function HistoricoEdicaoPage({
   return (
     <div className="space-y-4">
       <PageTitle title={bundle.edition.name} subtitle={`Classificação final · ${period.period.name}`} />
-      <PeriodTabs periods={result.periods} selected={period.period.id} basePath={`/historico/${edicao}`} />
-      <Winners period={period} rows={rows} prizes={bundle.edition.rules.prizes.positions} />
-      <RankingList rows={rows} />
+      <div className="lg:max-w-sm">
+        <PeriodTabs periods={result.periods} selected={period.period.id} basePath={`/historico/${edicao}`} />
+      </div>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-6">
+        <aside className="lg:sticky lg:top-20 lg:order-2">
+          <Winners period={period} rows={rows} prizes={bundle.edition.rules.prizes.positions} />
+        </aside>
+        <div className="min-w-0 lg:order-1">
+          <RankingList rows={rows} />
+        </div>
+      </div>
     </div>
   );
 }

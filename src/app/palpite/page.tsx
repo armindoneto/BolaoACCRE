@@ -26,16 +26,16 @@ export default async function PalpitePage({ searchParams }: { searchParams: Prom
   }
   const { link } = await searchParams;
   const user = await getUser();
-  // Quem já tem link pessoal (ou conta com palpites) não precisa informar o nome de novo.
+  // Quem já tem link pessoal (ou conta com cadastro) não precisa informar o nome de novo.
   const access = link
-    ? await repo().getByToken(link)
+    ? await repo().getParticipantByToken(link)
     : user
-      ? await repo().getByUser(user.id, bundle.edition.id)
+      ? await repo().getParticipantByUser(user.id)
       : null;
   const token = link && access ? link : null;
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <PageTitle
         title={access ? "Mais um palpite" : "Fazer palpite"}
         subtitle={
@@ -48,7 +48,7 @@ export default async function PalpitePage({ searchParams }: { searchParams: Prom
       />
       {access && (
         <p className="card p-3 text-sm">
-          Palpite de <strong>{access.participantName}</strong>.
+          Palpite de <strong>{access.name}</strong>.
         </p>
       )}
       <PickForm

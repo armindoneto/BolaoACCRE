@@ -21,7 +21,7 @@ export default async function ExportarPage({
   const rows = buildRankingRows(bundle, period);
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <PeriodTabs
         periods={result.periods}
         selected={period.period.id}

@@ -39,13 +39,16 @@ export default async function TimesPage({ searchParams }: { searchParams: Promis
       <PageTitle title="Times" subtitle="Quanto cada time já pontuou, e de onde veio cada ponto.">
         <PeriodStatusChip period={period} />
       </PageTitle>
-      <PeriodTabs periods={result.periods} selected={period.period.id} basePath="/times" />
+      <div className="lg:max-w-sm">
+        <PeriodTabs periods={result.periods} selected={period.period.id} basePath="/times" />
+      </div>
       <PendingNotice bundle={bundle} period={period} />
 
+      <div className="grid items-start gap-x-6 gap-y-4 lg:grid-cols-2">
       {tiersOf(bundle).map((tier) => (
         <section key={tier}>
           <h2 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Nível {tier}</h2>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid items-start gap-2 sm:grid-cols-2">
             {bundle.teams
               .filter((t) => t.tier === tier)
               .map((team) => {
@@ -134,6 +137,7 @@ export default async function TimesPage({ searchParams }: { searchParams: Promis
           </div>
         </section>
       ))}
+      </div>
     </div>
   );
 }

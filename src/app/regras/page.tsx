@@ -48,6 +48,9 @@ export default async function RegrasPage() {
     <div className="space-y-4">
       <PageTitle title="Regras" subtitle={edition.name} />
 
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
+
       <Section title="Como funciona">
         <ul className="list-disc space-y-1 pl-5 text-sm">
           <li>Cada palpite escolhe <strong>1 time de cada nível</strong> ({tiers.length} times no total).</li>
@@ -88,6 +91,8 @@ export default async function RegrasPage() {
         </ul>
       </Section>
 
+      </div>
+      <div className="space-y-4">
       <Section title="Pontos por jogo">
         <p className="mb-1 text-sm text-muted">Os pontos se somam: uma vitória por goleada fora de casa ganha os três.</p>
         <PointsList items={d.matchRules} />
@@ -120,6 +125,8 @@ export default async function RegrasPage() {
           <p className="mt-3 whitespace-pre-line rounded-xl bg-primary-soft p-3 text-sm">{edition.prizesText}</p>
         )}
       </Section>
+      </div>
+      </div>
     </div>
   );
 }

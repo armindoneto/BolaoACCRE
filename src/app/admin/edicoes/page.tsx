@@ -8,7 +8,7 @@ export default async function EdicoesPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-extrabold tracking-tight">Edições</h1>
-      <ul className="space-y-2">
+      <ul className="grid gap-2 lg:grid-cols-2">
         {editions.map((e) => (
           <li key={e.id} className="card flex flex-wrap items-center justify-between gap-2 p-3">
             <div>
@@ -26,7 +26,7 @@ export default async function EdicoesPage() {
       </ul>
 
       {editions.length > 0 && (
-        <form action={duplicateEdition} className="card space-y-3 p-4">
+        <form action={duplicateEdition} className="card max-w-xl space-y-3 p-4">
           <h2 className="font-bold">Nova edição a partir de uma anterior</h2>
           <p className="text-sm text-muted">
             Copia as regras e os níveis. A nova edição nasce como rascunho, sem jogos e sem palpites, para você ajustar.

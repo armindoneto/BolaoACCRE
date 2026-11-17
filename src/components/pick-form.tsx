@@ -22,17 +22,23 @@ export function PickForm({
   initial,
   submitLabel,
   onSave,
-  nameSuggestions,
+  participants,
+  initialParticipantId,
 }: {
   tiers: PickFormTier[];
   askName: boolean;
   initial?: { name?: string; nickname?: string | null; picks?: Record<number, string> };
   submitLabel: string;
   onSave: (payload: EntryPayload) => Promise<SaveResult>;
-  nameSuggestions?: string[];
+  /** Só no admin: lista de participantes já cadastrados para escolher. */
+  participants?: { id: string; name: string }[];
+  initialParticipantId?: string;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
+  // "" = participante novo (o admin digita o nome).
+  const [participantId, setParticipantId] = useState(initialParticipantId ?? "");
+  const needsName = participants ? participantId === "" : askName;
   const [nickname, setNickname] = useState(initial?.nickname ?? "");
   const [picks, setPicks] = useState<Record<number, string>>(initial?.picks ?? {});
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +50,8 @@ export function PickForm({
 
   function save(confirmDuplicate: boolean) {
     setError(null);
-    if (askName && name.trim().length < 2) {
-      setError("Escreva seu nome para continuar.");
+    if (needsName && name.trim().length < 2) {
+      setError(participants ? "Escolha um participante ou escreva o nome do novo." : "Escreva seu nome para continuar.");
       document.getElementById("pick-name")?.focus();
       return;
     }
@@ -55,7 +61,13 @@ export function PickForm({
     }
     startTransition(async () => {
       try {
-        const result = await onSave({ name, nickname, picks, confirmDuplicate });
+        const result = await onSave({
+          name,
+          participantId: participants && participantId ? participantId : undefined,
+          nickname,
+          picks,
+          confirmDuplicate,
+        });
         if (result.ok) {
           setDuplicate(false);
           if (result.redirectTo) router.push(result.redirectTo);
@@ -80,27 +92,40 @@ export function PickForm({
         save(false);
       }}
     >
-      <div className="card space-y-3 p-4">
-        {askName && (
+      <div className="card grid gap-3 p-4 lg:grid-cols-2">
+        {participants && (
           <div>
-            <label htmlFor="pick-name" className="label">Seu nome</label>
+            <label htmlFor="pick-participant" className="label">Participante</label>
+            <select
+              id="pick-participant"
+              className="input"
+              value={participantId}
+              onChange={(e) => {
+                setParticipantId(e.target.value);
+                setError(null);
+              }}
+            >
+              <option value="">➕ Novo participante…</option>
+              {participants.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {needsName && (
+          <div>
+            <label htmlFor="pick-name" className="label">
+              {participants ? "Nome do novo participante" : "Seu nome"}
+            </label>
             <input
               id="pick-name"
               className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Como o pessoal te conhece"
-              autoComplete="name"
+              placeholder={participants ? "Nome de quem está palpitando" : "Como o pessoal te conhece"}
+              autoComplete={participants ? "off" : "name"}
               maxLength={60}
-              list={nameSuggestions ? "pick-names" : undefined}
             />
-            {nameSuggestions && (
-              <datalist id="pick-names">
-                {nameSuggestions.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
-            )}
           </div>
         )}
         <div>
@@ -118,7 +143,7 @@ export function PickForm({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="grid gap-3 lg:grid-cols-2">
         {tiers.map(({ tier, teams }) => (
           <fieldset key={tier} className="card p-3">
             <legend className="float-left mb-2 w-full text-xs font-bold uppercase tracking-wide text-muted">
@@ -181,7 +206,7 @@ export function PickForm({
       )}
 
       {!duplicate && (
-        <div className="sticky bottom-20 z-10 sm:bottom-4">
+        <div className="sticky bottom-20 z-10 sm:bottom-4 lg:mx-auto lg:max-w-md">
           <button type="submit" className="btn-primary min-h-14 w-full text-base shadow-lg" disabled={pending}>
             {pending ? "Enviando…" : `${submitLabel} (${chosen}/${tiers.length})`}
           </button>

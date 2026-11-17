@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="flex min-h-full flex-col font-sans">
         <ThemeProvider>
           <header className="no-print sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
-            <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
+            <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 lg:px-6">
               <Link href="/" className="flex items-center gap-2 font-extrabold tracking-tight">
                 <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm text-primary-fg">
                   ⚽
@@ -44,8 +44,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               Modo demonstração: dados fictícios, nada fica salvo.
             </div>
           )}
-          <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-4 pb-24 sm:pb-10">{children}</main>
-          <footer className="no-print mx-auto hidden w-full max-w-3xl gap-4 px-4 pb-6 text-xs text-muted sm:flex">
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-24 sm:pb-10 lg:px-6 lg:pt-6">{children}</main>
+          <footer className="no-print mx-auto hidden w-full max-w-6xl gap-4 px-4 pb-6 text-xs text-muted sm:flex lg:px-6">
             <Link href="/regras" className="hover:text-fg">Regras</Link>
             <Link href="/meus-palpites" className="hover:text-fg">Meus palpites</Link>
             <Link href="/admin" className="hover:text-fg">Administração</Link>

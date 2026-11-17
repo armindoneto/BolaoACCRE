@@ -23,7 +23,7 @@ export default async function AdminTimesPage({ searchParams }: { searchParams: P
         tiersOf(bundle).map((tier) => (
           <section key={tier}>
             <h2 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Nível {tier}</h2>
-            <div className="space-y-2">
+            <div className="grid items-start gap-2 md:grid-cols-2">
               {bundle.teams
                 .filter((t) => t.tier === tier)
                 .map((t) => (
