@@ -15,7 +15,8 @@ import {
   type SaveResult,
 } from "@/lib/entries";
 import { parseBrDate } from "@/lib/csv";
-import { parseRules } from "@/lib/scoring";
+import { parseHistory } from "@/lib/history-import";
+import { buildImportedResult, formatPoints, parseRules, type Rules } from "@/lib/scoring";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -322,10 +323,173 @@ export async function duplicateEdition(formData: FormData): Promise<void> {
 export async function deleteEdition(editionId: string): Promise<void> {
   await requireAdmin();
   const bundle = await mustGetBundle(editionId);
-  if (bundle.edition.status !== "draft") throw new Error("Só é possível excluir edições em rascunho.");
+  if (bundle.edition.status !== "draft" && !bundle.edition.importedResults) {
+    throw new Error("Só é possível excluir rascunhos e edições importadas.");
+  }
   await repo().deleteEdition(editionId);
   refresh();
   redirect("/admin/edicoes");
+}
+
+/** Passa a edição para outro estado: palpites abertos, em andamento ou encerrada. */
+export async function setEditionStatus(editionId: string, status: EditionStatus): Promise<void> {
+  await requireAdmin();
+  if (!STATUSES.includes(status)) throw new Error("Situação inválida.");
+  await mustGetBundle(editionId);
+  await repo().updateEdition(editionId, { status });
+  refresh();
+}
+
+// ---------- Importação de bolões antigos ----------
+
+export interface HistoryImportForm {
+  name: string;
+  season: number;
+  /** Nomes das etapas, separados por vírgula. */
+  periods: string;
+  teamsText: string;
+  entriesText: string;
+}
+
+export type HistoryImportResult =
+  | { ok: false; errors: string[] }
+  | {
+      ok: true;
+      saved: boolean;
+      editionId?: string;
+      summary: {
+        teams: number;
+        tiers: number;
+        entries: number;
+        participants: string[];
+        newParticipants: string[];
+        periods: { name: string; top: string[]; last: string[]; usesPositions: boolean }[];
+      };
+    };
+
+/**
+ * Importa um bolão antigo colado da planilha. Com `save = false` só confere os
+ * dados e devolve um resumo; com `save = true` grava a edição como encerrada.
+ */
+export async function importHistoricEdition(form: HistoryImportForm, save: boolean): Promise<HistoryImportResult> {
+  await requireAdmin();
+  const name = form.name.trim();
+  const errors: string[] = [];
+  if (!name) errors.push("Dê um nome para a edição (ex.: Brasileirão 2023).");
+  if (!Number.isInteger(form.season) || form.season < 1900 || form.season > 2200) errors.push("Temporada inválida.");
+  const editions = await repo().listEditions();
+  if (editions.some((e) => normalizeName(e.name) === normalizeName(name))) {
+    errors.push(`Já existe uma edição chamada "${name}".`);
+  }
+
+  // Apelidos dos times já cadastrados (nome curto e sigla), para a planilha poder usar qualquer um.
+  const aliases: Record<string, string> = {};
+  for (const edition of editions) {
+    const bundle = await repo().getBundle(edition.id);
+    for (const team of bundle?.teams ?? []) {
+      aliases[team.shortName] = team.name;
+      aliases[team.code] = team.name;
+    }
+  }
+  const parsed = parseHistory({
+    periodNames: form.periods.split(","),
+    teamsText: form.teamsText,
+    entriesText: form.entriesText,
+    aliases,
+  });
+  if (!parsed.ok) return { ok: false, errors: [...errors, ...parsed.errors] };
+  if (errors.length > 0) return { ok: false, errors };
+  const { data } = parsed;
+
+  const rules: Rules = {
+    periods: data.periods.map((periodName, i) => ({ id: `E${i + 1}`, name: periodName, rounds: [i + 1, i + 1] })),
+    matchRules: [],
+    periodEndRules: [],
+    tiebreakers: [{ type: "total_points" }, { type: "tier_points_sequence", tiers: data.tiers.map((t) => t.tier) }],
+    fullTieBehavior: "share_position",
+    prizes: { scope: "per_period", positions: [1, 2, 3, "last"], ranking: "dense", tieBehavior: "split" },
+  };
+
+  // Monta o resultado usando os nomes como ids, só para o resumo e a conferência.
+  const preview = buildImportedResult({
+    rules,
+    teams: data.tiers.flatMap((t) => t.teamNames.map((teamName) => ({ id: teamName, tier: t.tier }))),
+    entries: data.entries.map((e) => ({ id: e.name, picks: e.picks })),
+    imported: {
+      periods: data.periods.map((_, p) => ({
+        id: `E${p + 1}`,
+        teamScores: Object.fromEntries(data.teamScores[p]),
+        positions: data.entries.every((e) => e.positions[p] !== undefined)
+          ? Object.fromEntries(data.entries.map((e) => [e.name, e.positions[p]!]))
+          : undefined,
+      })),
+    },
+  });
+  const known = await repo().listParticipants();
+  const knownByName = new Map(known.map((p) => [normalizeName(p.name), p]));
+  const participantNames = [...new Set(data.entries.flatMap((e) => (e.participant ? [e.participant] : [])))];
+  const summary = {
+    teams: data.tiers.reduce((sum, t) => sum + t.teamNames.length, 0),
+    tiers: data.tiers.length,
+    entries: data.entries.length,
+    participants: participantNames,
+    newParticipants: participantNames.filter((n) => !knownByName.has(normalizeName(n))),
+    periods: preview.periods.map((period, p) => {
+      const lastPosition = Math.max(...period.ranking.map((r) => r.position));
+      const line = (r: (typeof period.ranking)[number]) => `${r.position}º ${r.entryId} (${formatPoints(r.tenths)} pts)`;
+      return {
+        name: period.period.name,
+        top: period.ranking.filter((r) => r.position <= 3).map(line),
+        last: period.ranking.filter((r) => r.position === lastPosition && r.position > 3).map(line),
+        usesPositions: data.entries.every((e) => e.positions[p] !== undefined),
+      };
+    }),
+  };
+  if (!save) return { ok: true, saved: false, summary };
+
+  const editionId = await repo().createEdition({ name, season: form.season, status: "finished", rules });
+  try {
+    await repo().setEditionTiers(editionId, data.tiers);
+    const bundle = await mustGetBundle(editionId);
+    const teamId = new Map(bundle.teams.map((t) => [normalizeName(t.name), t.id]));
+    const idOf = (teamName: string) => {
+      const id = teamId.get(normalizeName(teamName));
+      if (!id) throw new Error(`Time não encontrado depois de gravar: ${teamName}`);
+      return id;
+    };
+    // Participantes: usa os já cadastrados e cria os que faltam.
+    const participantId = new Map<string, string>();
+    for (const participantName of participantNames) {
+      const key = normalizeName(participantName);
+      const existing = knownByName.get(key);
+      participantId.set(key, existing ? existing.id : (await repo().createParticipant(participantName)).id);
+    }
+    const entryIds = await repo().createEntries(
+      data.entries.map((e) => ({
+        editionId,
+        name: e.name,
+        participantId: e.participant ? participantId.get(normalizeName(e.participant))! : null,
+        picks: Object.fromEntries(Object.entries(e.picks).map(([tier, teamName]) => [tier, idOf(teamName)])),
+      })),
+    );
+    await repo().updateEdition(editionId, {
+      importedResults: {
+        periods: data.periods.map((_, p) => ({
+          id: `E${p + 1}`,
+          teamScores: Object.fromEntries([...data.teamScores[p]].map(([teamName, score]) => [idOf(teamName), score])),
+          positions: data.entries.every((e) => e.positions[p] !== undefined)
+            ? Object.fromEntries(data.entries.map((e, i) => [entryIds[i], e.positions[p]!]))
+            : undefined,
+        })),
+      },
+    });
+  } catch (e) {
+    // Não deixa uma edição pela metade no histórico.
+    await repo().deleteEdition(editionId).catch(() => {});
+    return { ok: false, errors: [`Não foi possível gravar: ${e instanceof Error ? e.message : "erro desconhecido"}`] };
+  }
+  refresh();
+  return { ok: true, saved: true, editionId, summary };
 }
 
 // ---------- Times e escudos ----------

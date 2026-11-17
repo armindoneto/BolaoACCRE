@@ -3,8 +3,8 @@ import { PageTitle, EmptyState } from "@/components/page-title";
 import { PendingNotice, PeriodStatusChip, PeriodTabs, UnresolvedTieNotice } from "@/components/period";
 import { RankingList } from "@/components/ranking";
 import { Winners } from "@/components/winners";
-import { computeBundle, currentPeriod, entriesOpen, getCurrentBundle } from "@/lib/data";
-import { buildRankingRows, dateTimeFmt, selectPeriod } from "@/lib/view";
+import { computeBundle, currentPeriod, entriesOpen, getCurrentBundle, type EditionBundle } from "@/lib/data";
+import { buildRankingRows, dateTimeFmt, selectPeriod, tiersOf } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
 
@@ -17,18 +17,20 @@ export default async function Home({
   if (!bundle) {
     return (
       <EmptyState title="Nenhum bolão em andamento">
-        Assim que o próximo bolão abrir, ele aparece aqui. Enquanto isso, veja o{" "}
-        <Link href="/historico" className="font-semibold text-primary">histórico</Link>.
+        Assim que o próximo bolão abrir, é aqui que você faz o seu palpite.
+        <p className="mt-4">
+          <Link href="/historico" className="btn-primary">Ver os bolões anteriores</Link>
+        </p>
       </EmptyState>
     );
   }
+  // Antes de começar, a página inicial é o convite para palpitar (sem classificação).
+  if (bundle.edition.status === "open_for_entries") return <EntriesOpenHome bundle={bundle} />;
+
   const { edition } = bundle;
   const result = computeBundle(bundle);
   const period = selectPeriod(result.periods, (await searchParams).turno, currentPeriod(result));
   const rows = buildRankingRows(bundle, period);
-  const open = entriesOpen(edition);
-  // Enquanto os palpites estão abertos, as escolhas dos outros ficam escondidas.
-  const hidePicks = edition.status === "open_for_entries";
   const participants = new Set(bundle.entries.map((e) => e.participantId).filter(Boolean)).size;
 
   return (
@@ -47,32 +49,10 @@ export default async function Home({
         >
           <PeriodStatusChip period={period} />
         </PageTitle>
-        {!hidePicks && (
-          <div className="w-full lg:w-80">
-            <PeriodTabs periods={result.periods} selected={period.period.id} basePath="/" />
-          </div>
-        )}
-      </div>
-
-      {edition.status === "open_for_entries" && (
-        <div className="card flex flex-wrap items-center justify-between gap-3 border-primary/40 bg-primary-soft p-4">
-          <div>
-            <p className="font-bold">{open ? "Os palpites estão abertos!" : "Palpites encerrados"}</p>
-            <p className="text-sm text-muted">
-              {open
-                ? edition.entriesDeadline
-                  ? `Você pode palpitar até ${dateTimeFmt.format(new Date(edition.entriesDeadline))}.`
-                  : "Escolha um time de cada nível. Leva um minuto."
-                : "O bolão começa em breve. Os times de cada um aparecem quando a bola rolar."}
-            </p>
-          </div>
-          {open && (
-            <Link href="/palpite" className="btn-primary">
-              Fazer meu palpite
-            </Link>
-          )}
+        <div className="w-full lg:w-80">
+          <PeriodTabs periods={result.periods} selected={period.period.id} basePath="/" />
         </div>
-      )}
+      </div>
 
       {/* Celular: avisos e vencedores em cima da lista. Desktop: coluna à direita. */}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-6">
@@ -105,21 +85,6 @@ export default async function Home({
         <div className="min-w-0 lg:order-1">
           {rows.length === 0 ? (
             <EmptyState title="Ainda não há palpites">Os palpites aparecem aqui assim que forem feitos.</EmptyState>
-          ) : hidePicks ? (
-            <section className="card p-4">
-              <h2 className="font-bold">
-                {rows.length} {rows.length === 1 ? "palpite feito" : "palpites feitos"}
-              </h2>
-              <ul className="mt-2 flex flex-wrap gap-1.5">
-                {[...rows]
-                  .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { numeric: true }))
-                  .map((r) => (
-                    <li key={r.entryId} className="chip bg-border/60 text-fg">
-                      {r.name}
-                    </li>
-                  ))}
-              </ul>
-            </section>
           ) : (
             <RankingList rows={rows} />
           )}
@@ -129,6 +94,86 @@ export default async function Home({
       <p className="no-print flex flex-wrap justify-center gap-x-4 gap-y-1 pt-2 text-sm lg:hidden">
         <Link href="/regras" className="font-semibold text-primary">Ver as regras</Link>
       </p>
+    </div>
+  );
+}
+
+/** Página inicial enquanto o bolão recebe palpites: acesso direto ao formulário. */
+function EntriesOpenHome({ bundle }: { bundle: EditionBundle }) {
+  const { edition } = bundle;
+  const open = entriesOpen(edition);
+  const tiers = tiersOf(bundle).length;
+  const names = bundle.entries.map((e) => e.name).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <section className="card overflow-hidden border-primary/40">
+        <div className="bg-primary px-5 py-8 text-center text-primary-fg sm:py-10">
+          <p className="text-sm font-semibold uppercase tracking-widest opacity-90">Bolão ACC-RE</p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">{edition.name}</h1>
+          <p className="mt-2 text-lg font-medium">
+            {open ? "Os palpites estão abertos!" : "Palpites encerrados. O bolão começa em breve!"}
+          </p>
+          {open && edition.entriesDeadline && (
+            <p className="mt-1 text-sm opacity-90">
+              Você pode palpitar até {dateTimeFmt.format(new Date(edition.entriesDeadline))}.
+            </p>
+          )}
+        </div>
+        {open && (
+          <div className="p-4 sm:p-5">
+            <Link href="/palpite" className="btn-primary min-h-16 w-full text-lg shadow-lg">
+              Fazer meu palpite
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {open && (
+        <section className="card p-4 sm:p-5">
+          <h2 className="font-bold">Como funciona</h2>
+          <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+            {[
+              ["1", "Dê um nome ao seu palpite", "Um nome que ajude a saber que é seu."],
+              ["2", `Escolha ${tiers} times`, "Um time de cada nível."],
+              ["3", "Envie", "Pronto! Quer fazer mais de um? É só repetir."],
+            ].map(([n, title, text]) => (
+              <li key={n} className="flex gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft font-bold text-primary">
+                  {n}
+                </span>
+                <span>
+                  <span className="block font-semibold leading-tight">{title}</span>
+                  <span className="text-sm text-muted">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-4 text-sm">
+            <Link href="/regras" className="font-semibold text-primary">Ver as regras e a pontuação</Link>
+          </p>
+        </section>
+      )}
+
+      <section className="card p-4 sm:p-5">
+        <h2 className="font-bold">
+          {names.length === 0
+            ? "Ninguém palpitou ainda"
+            : `${names.length} ${names.length === 1 ? "palpite feito" : "palpites feitos"}`}
+        </h2>
+        {names.length === 0 ? (
+          <p className="mt-1 text-sm text-muted">Seja o primeiro!</p>
+        ) : (
+          <>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {names.map((name) => (
+                <li key={name} className="chip bg-border/60 text-fg">{name}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted">Os times de cada palpite aparecem quando o bolão começar.</p>
+          </>
+        )}
+      </section>
     </div>
   );
 }

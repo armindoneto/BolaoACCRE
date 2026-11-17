@@ -42,7 +42,7 @@ function check(result: { data: unknown; error: { message: string } | null }): an
 }
 
 const EDITION_COLUMNS =
-  "id, season, name, status, rules, entries_deadline, prizes_text, manual_standings_order, competition_id, competitions(name, standings_criteria)";
+  "id, season, name, status, rules, entries_deadline, prizes_text, manual_standings_order, imported_results, competition_id, competitions(name, standings_criteria)";
 
 function mapEdition(row: any): Edition {
   return {
@@ -56,6 +56,7 @@ function mapEdition(row: any): Edition {
     entriesDeadline: row.entries_deadline,
     prizesText: row.prizes_text,
     manualStandingsOrder: row.manual_standings_order ?? {},
+    importedResults: row.imported_results ?? null,
   };
 }
 
@@ -193,6 +194,44 @@ export const supabaseRepo: Repo = {
     return mapEntry(full);
   },
 
+  async createEntries(inputs) {
+    if (inputs.length === 0) return [];
+    const rows = check(
+      await db()
+        .from("entries")
+        .insert(
+          inputs.map((input) => ({
+            edition_id: input.editionId,
+            participant_id: input.participantId,
+            name: input.name,
+            selection_key: selectionKey(input.picks),
+          })),
+        )
+        .select("id, name"),
+    );
+    // Os nomes são únicos dentro da edição: servem para casar cada linha com o seu id.
+    const idByName = new Map<string, string>(rows.map((r: any) => [r.name, r.id]));
+    const ids = inputs.map((input) => {
+      const id = idByName.get(input.name);
+      if (!id) throw new Error(`Palpite não gravado: ${input.name}`);
+      return id;
+    });
+    check(
+      await db()
+        .from("entry_picks")
+        .insert(
+          inputs.flatMap((input, i) =>
+            Object.entries(input.picks).map(([tier, teamId]) => ({
+              entry_id: ids[i],
+              tier: Number(tier),
+              team_id: teamId,
+            })),
+          ),
+        ),
+    );
+    return ids;
+  },
+
   async updateEntry(entryId, patch) {
     const row: Record<string, unknown> = {};
     if (patch.name !== undefined) row.name = patch.name;
@@ -254,6 +293,7 @@ export const supabaseRepo: Repo = {
     if (patch.entriesDeadline !== undefined) row.entries_deadline = patch.entriesDeadline;
     if (patch.prizesText !== undefined) row.prizes_text = patch.prizesText;
     if (patch.manualStandingsOrder !== undefined) row.manual_standings_order = patch.manualStandingsOrder;
+    if (patch.importedResults !== undefined) row.imported_results = patch.importedResults;
     if (Object.keys(row).length === 0) return;
     check(await db().from("editions").update(row).eq("id", editionId));
   },
@@ -308,6 +348,33 @@ export const supabaseRepo: Repo = {
           .insert(teams.map((t: any) => ({ edition_id: created.id, team_id: t.team_id, tier: t.tier }))),
       );
     }
+    return created.id as string;
+  },
+
+  async createEdition(input) {
+    // Usa o campeonato da edição mais recente (ou o primeiro cadastrado).
+    const latest = check(
+      await db().from("editions").select("competition_id").order("season", { ascending: false }).limit(1),
+    );
+    let competitionId = latest?.[0]?.competition_id;
+    if (!competitionId) {
+      const first = check(await db().from("competitions").select("id").order("name").limit(1));
+      competitionId = first?.[0]?.id;
+    }
+    if (!competitionId) throw new Error("Nenhum campeonato cadastrado.");
+    const created = check(
+      await db()
+        .from("editions")
+        .insert({
+          competition_id: competitionId,
+          season: input.season,
+          name: input.name,
+          status: input.status,
+          rules: input.rules,
+        })
+        .select("id")
+        .single(),
+    );
     return created.id as string;
   },
 

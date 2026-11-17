@@ -149,6 +149,7 @@ function buildDemoEdition(o: DemoOptions): EditionBundle {
     entriesDeadline: null,
     prizesText: "1º lugar: 50% · 2º lugar: 25% · 3º lugar: 15% · Último: 10% (em cada turno)",
     manualStandingsOrder: {},
+    importedResults: null,
   };
 
   return { edition, teams, matches, entries };

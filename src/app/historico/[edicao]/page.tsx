@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageTitle } from "@/components/page-title";
 import { PeriodTabs } from "@/components/period";
 import { RankingList } from "@/components/ranking";
+import { TeamScores } from "@/components/team-scores";
 import { Winners } from "@/components/winners";
 import { computeBundle, getBundle } from "@/lib/data";
 import { buildRankingRows, selectPeriod } from "@/lib/view";
@@ -25,6 +26,9 @@ export default async function HistoricoEdicaoPage({
   return (
     <div className="space-y-4">
       <PageTitle title={bundle.edition.name} subtitle={`Classificação final · ${period.period.name}`} />
+      <p className="no-print flex gap-4 text-sm font-semibold text-primary lg:hidden">
+        <a href="#times">Ver os pontos de cada time ↓</a>
+      </p>
       <div className="lg:max-w-sm">
         <PeriodTabs periods={result.periods} selected={period.period.id} basePath={`/historico/${edicao}`} />
       </div>
@@ -36,6 +40,11 @@ export default async function HistoricoEdicaoPage({
           <RankingList rows={rows} />
         </div>
       </div>
+
+      <section id="times" className="scroll-mt-20 space-y-3 pt-2">
+        <h2 className="text-lg font-bold">Pontos de cada time · {period.period.name}</h2>
+        <TeamScores bundle={bundle} period={period} />
+      </section>
     </div>
   );
 }
