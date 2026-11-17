@@ -1,36 +1,44 @@
 import { randomUUID } from "node:crypto";
 import { selectionKey } from "@/lib/scoring";
-import { buildDemoBundle } from "./demo";
-import type { EditionBundle, Entry, Repo, TokenAccess } from "./types";
+import { buildDemoBundles, DEMO_PARTICIPANTS } from "./demo";
+import type { EditionBundle, Entry, EditionTeam, Repo } from "./types";
 import { newToken, normalizeName, teamCodeFromName } from "./util";
 
 /**
  * Repositório em memória, usado no MODO DEMONSTRAÇÃO (sem Supabase
  * configurado). Os dados somem quando o servidor reinicia.
  */
-interface Store {
-  bundles: Map<string, EditionBundle>;
-  /** id do participante -> token do link pessoal */
-  tokens: Map<string, string>;
-  /** id do participante -> id do usuário */
-  users: Map<string, string>;
+interface StoredParticipant {
+  id: string;
+  name: string;
+  token: string;
+  userId: string | null;
 }
 
-const g = globalThis as unknown as { __bolaoDemoStore?: Store };
+interface Store {
+  bundles: Map<string, EditionBundle>;
+  participants: Map<string, StoredParticipant>;
+}
+
+const g = globalThis as unknown as { __bolaoDemoStore2?: Store };
 
 function store(): Store {
-  if (!g.__bolaoDemoStore) {
-    const demo = buildDemoBundle();
-    g.__bolaoDemoStore = {
-      bundles: new Map([[demo.edition.id, demo]]),
-      tokens: new Map(),
-      users: new Map(),
+  if (!g.__bolaoDemoStore2) {
+    g.__bolaoDemoStore2 = {
+      bundles: new Map(buildDemoBundles().map((b) => [b.edition.id, b])),
+      participants: new Map(
+        DEMO_PARTICIPANTS.map((p) => [p.id, { ...p, token: newToken(), userId: null }]),
+      ),
     };
   }
-  return g.__bolaoDemoStore;
+  return g.__bolaoDemoStore2;
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
+
+function allEntries(): Entry[] {
+  return [...store().bundles.values()].flatMap((b) => b.entries);
+}
 
 function findEntry(entryId: string): { bundle: EditionBundle; entry: Entry } {
   for (const bundle of store().bundles.values()) {
@@ -40,27 +48,20 @@ function findEntry(entryId: string): { bundle: EditionBundle; entry: Entry } {
   throw new Error("Palpite não encontrado");
 }
 
-function tokenFor(participantId: string): string {
-  const s = store();
-  let token = s.tokens.get(participantId);
-  if (!token) {
-    token = newToken();
-    s.tokens.set(participantId, token);
-  }
-  return token;
+function mustParticipant(id: string): StoredParticipant {
+  const p = store().participants.get(id);
+  if (!p) throw new Error("Participante não encontrado");
+  return p;
 }
 
-function access(participantId: string, bundle: EditionBundle): TokenAccess | null {
-  const entries = bundle.entries.filter((e) => e.participantId === participantId);
-  if (entries.length === 0) return null;
-  return {
-    token: tokenFor(participantId),
-    editionId: bundle.edition.id,
-    participantId,
-    participantName: entries[0].participantName,
-    entries: clone(entries),
-  };
+/** O mesmo time aparece copiado em cada edição; devolve todas as cópias. */
+function teamCopies(teamId: string): EditionTeam[] {
+  const copies = [...store().bundles.values()].flatMap((b) => b.teams.filter((t) => t.id === teamId));
+  if (copies.length === 0) throw new Error("Time não encontrado");
+  return copies;
 }
+
+const ref = (p: StoredParticipant | undefined) => (p ? { id: p.id, name: p.name } : null);
 
 export const memoryRepo: Repo = {
   async listEditions() {
@@ -94,38 +95,29 @@ export const memoryRepo: Repo = {
   async createEntry(input) {
     const bundle = store().bundles.get(input.editionId);
     if (!bundle) throw new Error("Edição não encontrada");
-    const s = store();
-    let participantId = input.participantId;
-    if (!participantId && input.userId) {
-      participantId = [...s.users.entries()].find(([, userId]) => userId === input.userId)?.[0];
-    }
-    const existing = participantId
-      ? bundle.entries.find((e) => e.participantId === participantId)
-      : undefined;
-    participantId ??= randomUUID();
-    if (input.userId) s.users.set(participantId, input.userId);
+    const participant = mustParticipant(input.participantId);
     const entry: Entry = {
       id: randomUUID(),
-      participantId,
-      participantName: existing?.participantName ?? input.participantName,
+      participantId: participant.id,
+      participantName: participant.name,
       nickname: input.nickname,
       selectionKey: selectionKey(input.picks),
       picks: { ...input.picks },
       createdAt: new Date().toISOString(),
     };
     bundle.entries.push(entry);
-    return { entry: clone(entry), token: tokenFor(participantId) };
+    return clone(entry);
   },
 
   async updateEntry(entryId, patch) {
-    const { bundle, entry } = findEntry(entryId);
+    const { entry } = findEntry(entryId);
     entry.nickname = patch.nickname;
     entry.picks = { ...patch.picks };
     entry.selectionKey = selectionKey(patch.picks);
-    if (patch.participantName) {
-      for (const e of bundle.entries) {
-        if (e.participantId === entry.participantId) e.participantName = patch.participantName;
-      }
+    if (patch.participantId && patch.participantId !== entry.participantId) {
+      const participant = mustParticipant(patch.participantId);
+      entry.participantId = participant.id;
+      entry.participantName = participant.name;
     }
   },
 
@@ -134,33 +126,62 @@ export const memoryRepo: Repo = {
     bundle.entries = bundle.entries.filter((e) => e.id !== entryId);
   },
 
-  async getEntryToken(entryId) {
-    return tokenFor(findEntry(entryId).entry.participantId);
+  async listParticipants() {
+    const counts = new Map<string, number>();
+    for (const e of allEntries()) counts.set(e.participantId, (counts.get(e.participantId) ?? 0) + 1);
+    return [...store().participants.values()]
+      .map((p) => ({ id: p.id, name: p.name, hasAccount: p.userId !== null, entryCount: counts.get(p.id) ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   },
 
-  async getByToken(token) {
-    const s = store();
-    const participantId = [...s.tokens.entries()].find(([, t]) => t === token)?.[0];
-    if (!participantId) return null;
-    for (const bundle of s.bundles.values()) {
-      const found = access(participantId, bundle);
-      if (found) return found;
+  async getParticipant(participantId) {
+    return ref(store().participants.get(participantId));
+  },
+
+  async getParticipantByToken(token) {
+    return ref([...store().participants.values()].find((p) => p.token === token));
+  },
+
+  async getParticipantByUser(userId) {
+    return ref([...store().participants.values()].find((p) => p.userId === userId));
+  },
+
+  async getParticipantToken(participantId) {
+    return store().participants.get(participantId)?.token ?? null;
+  },
+
+  async createParticipant(name, userId = null) {
+    const p: StoredParticipant = { id: randomUUID(), name, token: newToken(), userId };
+    store().participants.set(p.id, p);
+    return { id: p.id, name: p.name, token: p.token };
+  },
+
+  async renameParticipant(participantId, name) {
+    mustParticipant(participantId).name = name;
+    for (const e of allEntries()) if (e.participantId === participantId) e.participantName = name;
+  },
+
+  async mergeParticipants(fromId, intoId) {
+    const from = mustParticipant(fromId);
+    const into = mustParticipant(intoId);
+    for (const e of allEntries()) {
+      if (e.participantId !== fromId) continue;
+      e.participantId = into.id;
+      e.participantName = into.name;
     }
-    return null;
+    into.userId ??= from.userId;
+    store().participants.delete(fromId);
   },
 
-  async getByUser(userId, editionId) {
-    const s = store();
-    const bundle = s.bundles.get(editionId);
-    const participantId = [...s.users.entries()].find(([, u]) => u === userId)?.[0];
-    if (!bundle || !participantId) return null;
-    return access(participantId, bundle);
+  async deleteParticipant(participantId) {
+    if (allEntries().some((e) => e.participantId === participantId)) {
+      throw new Error("Este participante ainda tem palpites.");
+    }
+    store().participants.delete(participantId);
   },
 
-  async linkTokenToUser(token, userId) {
-    const s = store();
-    const participantId = [...s.tokens.entries()].find(([, t]) => t === token)?.[0];
-    if (participantId) s.users.set(participantId, userId);
+  async linkParticipantToUser(participantId, userId) {
+    mustParticipant(participantId).userId = userId;
   },
 
   async updateEdition(editionId, patch) {
@@ -220,6 +241,21 @@ export const memoryRepo: Repo = {
 
   async deleteEdition(editionId) {
     store().bundles.delete(editionId);
+  },
+
+  async updateTeam(teamId, patch) {
+    for (const team of teamCopies(teamId)) Object.assign(team, patch);
+  },
+
+  async setTeamCrest(teamId, png) {
+    // Sem armazenamento de arquivos na demonstração: a imagem vai embutida no próprio endereço.
+    const url = `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
+    for (const team of teamCopies(teamId)) team.crestUrl = url;
+    return url;
+  },
+
+  async removeTeamCrest(teamId) {
+    for (const team of teamCopies(teamId)) team.crestUrl = null;
   },
 
   async isAdmin() {

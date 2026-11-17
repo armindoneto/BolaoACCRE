@@ -1,6 +1,6 @@
 import { RULES_2026, selectionKey } from "@/lib/scoring";
 import { TEAMS_2026 } from "./teams2026";
-import type { Edition, EditionBundle, EditionTeam, Entry, Match } from "./types";
+import type { Edition, EditionBundle, EditionStatus, EditionTeam, Entry, Match } from "./types";
 
 /** Gerador determinístico, para a demonstração ser sempre igual. */
 function mulberry32(seed: number) {
@@ -32,27 +32,41 @@ const NAMES = [
   "Nando", "Vera Antunes", "Chico Lopes", "Priscila Dantas", "Wagner Teles", "Júlia Sampaio", "Beto",
 ];
 
-export const DEMO_EDITION_ID = "demo-2026";
-export const DEMO_PLAYED_ROUNDS = 24;
+/** Participantes fictícios: os mesmos nas duas edições de demonstração. */
+export const DEMO_PARTICIPANTS = NAMES.map((name, i) => ({ id: `p${i + 1}`, name }));
 
-export function buildDemoBundle(): EditionBundle {
-  const rand = mulberry32(2026);
-  const teams: EditionTeam[] = TEAMS_2026.map((t) => ({
-    id: t.code.toLowerCase(),
-    name: t.name,
-    shortName: t.shortName,
-    code: t.code,
-    crestUrl: null,
-    color: t.color,
-    color2: t.color2,
-    tier: t.tier,
-  }));
+export const DEMO_TEAMS: EditionTeam[] = TEAMS_2026.map((t) => ({
+  id: t.code.toLowerCase(),
+  name: t.name,
+  shortName: t.shortName,
+  code: t.code,
+  crestUrl: null,
+  color: t.color,
+  color2: t.color2,
+  tier: t.tier,
+}));
+
+interface DemoOptions {
+  id: string;
+  season: number;
+  status: EditionStatus;
+  seed: number;
+  playedRounds: number;
+  /** Rodada com um jogo adiado (sem resultado), ou null. */
+  postponedRound: number | null;
+  /** Quantos dos participantes fictícios palpitam nesta edição. */
+  participants: number;
+}
+
+function buildDemoEdition(o: DemoOptions): EditionBundle {
+  const rand = mulberry32(o.seed);
+  const teams = structuredClone(DEMO_TEAMS);
 
   // Turno e returno pelo método do círculo.
   const n = teams.length;
   const order = teams.map((t) => t.id);
   const matches: Match[] = [];
-  const start = new Date("2026-04-04T19:00:00Z").getTime();
+  const start = new Date(`${o.season}-04-04T19:00:00Z`).getTime();
   for (let round = 0; round < n - 1; round++) {
     for (let i = 0; i < n / 2; i++) {
       const a = order[i];
@@ -62,7 +76,7 @@ export function buildDemoBundle(): EditionBundle {
       for (const leg of [0, 1]) {
         const r = round + 1 + leg * (n - 1);
         matches.push({
-          id: `m${r}-${i + 1}`,
+          id: `${o.id}-m${r}-${i + 1}`,
           round: r,
           date: new Date(start + (r - 1) * 7 * 86400000 + i * 3600000).toISOString(),
           homeTeamId: leg === 0 ? home : away,
@@ -78,26 +92,27 @@ export function buildDemoBundle(): EditionBundle {
 
   const tierOf = new Map(teams.map((t) => [t.id, t.tier]));
   for (const m of matches) {
-    if (m.round > DEMO_PLAYED_ROUNDS) continue;
+    if (m.round > o.playedRounds) continue;
     const h = 1.75 - tierOf.get(m.homeTeamId)! * 0.07;
     const a = 1.35 - tierOf.get(m.awayTeamId)! * 0.07;
     m.homeGoals = goals(rand, h);
     m.awayGoals = goals(rand, a);
   }
-  // Um jogo adiado no 1º turno, para mostrar o aviso de turno pendente.
-  const postponed = matches.find((m) => m.round === 17)!;
-  postponed.homeGoals = null;
-  postponed.awayGoals = null;
+  if (o.postponedRound !== null) {
+    const postponed = matches.find((m) => m.round === o.postponedRound)!;
+    postponed.homeGoals = null;
+    postponed.awayGoals = null;
+  }
 
   const byTier = new Map<number, EditionTeam[]>();
   for (const t of teams) byTier.set(t.tier, [...(byTier.get(t.tier) ?? []), t]);
   const entries: Entry[] = [];
-  const addEntry = (pIndex: number, nickname: string | null, picks: Record<number, string>) => {
+  const addEntry = (pIndex: number, picks: Record<number, string>) => {
     entries.push({
-      id: `e${entries.length + 1}`,
-      participantId: `p${pIndex + 1}`,
-      participantName: NAMES[pIndex],
-      nickname,
+      id: `${o.id}-e${entries.length + 1}`,
+      participantId: DEMO_PARTICIPANTS[pIndex].id,
+      participantName: DEMO_PARTICIPANTS[pIndex].name,
+      nickname: null,
       selectionKey: selectionKey(picks),
       picks,
       createdAt: new Date(start - 86400000 * 5 + entries.length * 60000).toISOString(),
@@ -108,22 +123,22 @@ export function buildDemoBundle(): EditionBundle {
     for (const [tier, options] of byTier) picks[tier] = options[Math.floor(rand() * options.length)].id;
     return picks;
   };
-  NAMES.forEach((_, i) => {
-    const two = i % 4 === 0;
-    addEntry(i, two ? "Palpite 1" : null, randomPicks());
-    if (two) addEntry(i, "Palpite 2", randomPicks());
-  });
+  for (let i = 0; i < o.participants; i++) {
+    // Um em cada quatro faz dois palpites; o primeiro da lista faz três.
+    const count = i === 0 ? 3 : i % 4 === 0 ? 2 : 1;
+    for (let k = 0; k < count; k++) addEntry(i, randomPicks());
+  }
   // Dois palpites idênticos, para mostrar a posição dividida.
-  entries[entries.length - 1].picks = { ...entries[3].picks };
-  entries[entries.length - 1].selectionKey = entries[3].selectionKey;
+  entries[entries.length - 1].picks = { ...entries[4].picks };
+  entries[entries.length - 1].selectionKey = entries[4].selectionKey;
 
   const edition: Edition = {
-    id: DEMO_EDITION_ID,
+    id: o.id,
     competitionName: "Brasileirão Série A",
     standingsCriteria: ["points", "wins", "goal_difference", "goals_for", "head_to_head"],
-    season: 2026,
-    name: "Brasileirão 2026",
-    status: "running",
+    season: o.season,
+    name: `Brasileirão ${o.season}`,
+    status: o.status,
     rules: RULES_2026,
     entriesDeadline: null,
     prizesText: "1º lugar: 50% · 2º lugar: 25% · 3º lugar: 15% · Último: 10% (em cada turno)",
@@ -131,4 +146,30 @@ export function buildDemoBundle(): EditionBundle {
   };
 
   return { edition, teams, matches, entries };
+}
+
+export const DEMO_EDITION_ID = "demo-2026";
+
+/** Edição em andamento (com um jogo adiado no 1º turno) e uma edição anterior, já encerrada. */
+export function buildDemoBundles(): EditionBundle[] {
+  return [
+    buildDemoEdition({
+      id: DEMO_EDITION_ID,
+      season: 2026,
+      status: "running",
+      seed: 2026,
+      playedRounds: 24,
+      postponedRound: 17,
+      participants: DEMO_PARTICIPANTS.length,
+    }),
+    buildDemoEdition({
+      id: "demo-2025",
+      season: 2025,
+      status: "finished",
+      seed: 2025,
+      playedRounds: 38,
+      postponedRound: null,
+      participants: 20,
+    }),
+  ];
 }

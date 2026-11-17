@@ -46,10 +46,13 @@ export default async function CampeonatoPage({
       <PageTitle title="Campeonato" subtitle={`${bundle.edition.competitionName} · tabela só com os jogos do turno`}>
         <PeriodStatusChip period={period} />
       </PageTitle>
-      <PeriodTabs periods={result.periods} selected={period.period.id} basePath="/campeonato" />
+      <div className="lg:max-w-sm">
+        <PeriodTabs periods={result.periods} selected={period.period.id} basePath="/campeonato" />
+      </div>
       <PendingNotice bundle={bundle} period={period} />
       <UnresolvedTieNotice period={period} />
 
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
       <section className="card overflow-hidden">
         <table className="tabular w-full text-sm">
           <thead>
@@ -108,7 +111,7 @@ export default async function CampeonatoPage({
         </p>
       </section>
 
-      <section id="rodada" className="card scroll-mt-20">
+      <section id="rodada" className="card scroll-mt-20 lg:sticky lg:top-20">
         <div className="flex items-center justify-between border-b border-border p-2">
           {round > first ? (
             <Link href={roundLink(round - 1)} scroll={false} aria-label="Rodada anterior" className="btn-outline size-11 px-0">
@@ -160,6 +163,7 @@ export default async function CampeonatoPage({
           </ul>
         )}
       </section>
+      </div>
     </div>
   );
 }

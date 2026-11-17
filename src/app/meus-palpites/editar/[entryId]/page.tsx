@@ -14,15 +14,15 @@ export default async function EditarMeuPalpitePage({ params }: { params: Promise
   const user = await getUser();
   if (!user) redirect("/entrar?next=/meus-palpites");
   const bundle = await getCurrentBundle();
-  const access = bundle ? await repo().getByUser(user.id, bundle.edition.id) : null;
-  const entry = access?.entries.find((e) => e.id === entryId);
-  if (!bundle || !access || !entry) notFound();
+  const participant = await repo().getParticipantByUser(user.id);
+  const entry = bundle?.entries.find((e) => e.id === entryId && e.participantId === participant?.id);
+  if (!bundle || !participant || !entry) notFound();
   if (!entriesOpen(bundle.edition)) {
     return <EmptyState title="O prazo terminou">Os palpites não podem mais ser alterados.</EmptyState>;
   }
   return (
-    <div className="space-y-4">
-      <PageTitle title="Mudar palpite" subtitle={`${access.participantName} · ${bundle.edition.name}`} />
+    <div className="mx-auto max-w-4xl space-y-4">
+      <PageTitle title="Mudar palpite" subtitle={`${participant.name} · ${bundle.edition.name}`} />
       <PickForm
         tiers={pickFormTiers(bundle)}
         askName={false}

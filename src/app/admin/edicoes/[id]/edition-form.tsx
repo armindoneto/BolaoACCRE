@@ -52,6 +52,8 @@ export function EditionForm({
         });
       }}
     >
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
       <section className="card space-y-3 p-4">
         <div className="grid grid-cols-[1fr_7rem] gap-2">
           <div>
@@ -123,6 +125,8 @@ export function EditionForm({
         </p>
       </section>
 
+      </div>
+      <div className="space-y-4">
       <section className="card space-y-2 p-4">
         <label className="label" htmlFor="ed-rules">Regras (JSON)</label>
         <textarea
@@ -152,6 +156,9 @@ export function EditionForm({
           </ul>
         )}
       </section>
+
+      </div>
+      </div>
 
       <details className="card p-4">
         <summary className="cursor-pointer font-bold">Desempate manual da tabela (raro)</summary>
@@ -184,7 +191,7 @@ export function EditionForm({
           {result.ok ? result.message : result.error}
         </p>
       )}
-      <div className="sticky bottom-4 z-10">
+      <div className="sticky bottom-4 z-10 lg:mx-auto lg:max-w-md">
         <button type="submit" className="btn-primary min-h-14 w-full text-base shadow-lg" disabled={pending || !preview.ok}>
           {pending ? "Salvando…" : "Salvar edição"}
         </button>

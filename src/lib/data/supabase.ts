@@ -1,12 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_STANDINGS_CRITERIA, selectionKey, type Rules } from "@/lib/scoring";
-import type { Edition, EditionBundle, EditionTeam, Entry, Match, Repo, TokenAccess } from "./types";
+import type { Edition, EditionBundle, EditionTeam, Entry, Match, Repo } from "./types";
 import { newToken, normalizeName, teamCodeFromName } from "./util";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /** Schema do Postgres onde ficam as tabelas do bolão (veja a migration). */
 const DB_SCHEMA = process.env.SUPABASE_DB_SCHEMA || "bolao";
+
+/** Depósito (bucket) público do Supabase Storage onde ficam os escudos. */
+const CREST_BUCKET = process.env.SUPABASE_CREST_BUCKET || "bolao-escudos";
 
 /** Chave secreta do servidor: aceita o nome novo (secret) e o antigo (service_role). */
 export function serviceKey(): string | undefined {
@@ -82,7 +85,7 @@ function mapMatch(row: any): Match {
 }
 
 const ENTRY_COLUMNS =
-  "id, edition_id, participant_id, nickname, selection_key, access_token, created_at, participants(display_name), entry_picks(tier, team_id)";
+  "id, edition_id, participant_id, nickname, selection_key, created_at, participants(display_name), entry_picks(tier, team_id)";
 
 function mapEntry(row: any): Entry {
   const picks: Record<number, string> = {};
@@ -98,15 +101,8 @@ function mapEntry(row: any): Entry {
   };
 }
 
-function toAccess(rows: any[]): TokenAccess | null {
-  if (rows.length === 0) return null;
-  return {
-    token: rows[0].access_token,
-    editionId: rows[0].edition_id,
-    participantId: rows[0].participant_id,
-    participantName: rows[0].participants?.display_name ?? "",
-    entries: rows.map(mapEntry),
-  };
+function toRef(row: any) {
+  return row ? { id: row.id as string, name: row.display_name as string } : null;
 }
 
 async function writePicks(entryId: string, picks: Record<number, string>) {
@@ -180,112 +176,125 @@ export const supabaseRepo: Repo = {
   },
 
   async createEntry(input) {
-    let participantId = input.participantId;
-    if (!participantId && input.userId) {
-      const found = check(
-        await db().from("participants").select("id").eq("user_id", input.userId).limit(1),
-      );
-      participantId = found?.[0]?.id;
-    }
-    let token: string | undefined;
-    if (participantId) {
-      const previous = check(
-        await db()
-          .from("entries")
-          .select("access_token")
-          .eq("participant_id", participantId)
-          .eq("edition_id", input.editionId)
-          .limit(1),
-      );
-      token = previous?.[0]?.access_token;
-      if (input.userId) {
-        check(await db().from("participants").update({ user_id: input.userId }).eq("id", participantId));
-      }
-    } else {
-      const created = check(
-        await db()
-          .from("participants")
-          .insert({ display_name: input.participantName, user_id: input.userId ?? null })
-          .select("id")
-          .single(),
-      );
-      participantId = created.id as string;
-    }
-    token ??= newToken();
     const row = check(
       await db()
         .from("entries")
         .insert({
           edition_id: input.editionId,
-          participant_id: participantId,
+          participant_id: input.participantId,
           nickname: input.nickname,
           selection_key: selectionKey(input.picks),
-          access_token: token,
         })
         .select("id")
         .single(),
     );
     await writePicks(row.id, input.picks);
     const full = check(await db().from("entries").select(ENTRY_COLUMNS).eq("id", row.id).single());
-    return { entry: mapEntry(full), token };
+    return mapEntry(full);
   },
 
   async updateEntry(entryId, patch) {
-    const row = check(
-      await db()
-        .from("entries")
-        .update({ nickname: patch.nickname, selection_key: selectionKey(patch.picks) })
-        .eq("id", entryId)
-        .select("participant_id")
-        .single(),
-    );
+    const row: Record<string, unknown> = {
+      nickname: patch.nickname,
+      selection_key: selectionKey(patch.picks),
+    };
+    if (patch.participantId) row.participant_id = patch.participantId;
+    check(await db().from("entries").update(row).eq("id", entryId));
     await writePicks(entryId, patch.picks);
-    if (patch.participantName) {
-      check(
-        await db()
-          .from("participants")
-          .update({ display_name: patch.participantName })
-          .eq("id", row.participant_id),
-      );
-    }
   },
 
   async deleteEntry(entryId) {
     check(await db().from("entries").delete().eq("id", entryId));
   },
 
-  async getEntryToken(entryId) {
-    const row = check(await db().from("entries").select("access_token").eq("id", entryId).maybeSingle());
+  async listParticipants() {
+    const [participants, entries] = await Promise.all([
+      db().from("participants").select("id, display_name, user_id").order("display_name"),
+      db().from("entries").select("participant_id"),
+    ]);
+    const counts = new Map<string, number>();
+    for (const e of check(entries) ?? []) {
+      counts.set(e.participant_id, (counts.get(e.participant_id) ?? 0) + 1);
+    }
+    return (check(participants) ?? [])
+      .map((p: any) => ({
+        id: p.id,
+        name: p.display_name,
+        hasAccount: p.user_id !== null,
+        entryCount: counts.get(p.id) ?? 0,
+      }))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, "pt-BR"));
+  },
+
+  async getParticipant(participantId) {
+    return toRef(
+      check(await db().from("participants").select("id, display_name").eq("id", participantId).maybeSingle()),
+    );
+  },
+
+  async getParticipantByToken(token) {
+    return toRef(
+      check(await db().from("participants").select("id, display_name").eq("access_token", token).maybeSingle()),
+    );
+  },
+
+  async getParticipantByUser(userId) {
+    const rows = check(
+      await db()
+        .from("participants")
+        .select("id, display_name")
+        .eq("user_id", userId)
+        .order("created_at")
+        .limit(1),
+    );
+    return toRef(rows?.[0]);
+  },
+
+  async getParticipantToken(participantId) {
+    const row = check(
+      await db().from("participants").select("access_token").eq("id", participantId).maybeSingle(),
+    );
     return row?.access_token ?? null;
   },
 
-  async getByToken(token) {
-    const rows = check(
-      await db().from("entries").select(ENTRY_COLUMNS).eq("access_token", token).order("created_at"),
-    );
-    return toAccess(rows ?? []);
-  },
-
-  async getByUser(userId, editionId) {
-    const participants = check(await db().from("participants").select("id").eq("user_id", userId));
-    const ids = (participants ?? []).map((p: any) => p.id);
-    if (ids.length === 0) return null;
-    const rows = check(
+  async createParticipant(name, userId = null) {
+    const token = newToken();
+    const row = check(
       await db()
-        .from("entries")
-        .select(ENTRY_COLUMNS)
-        .eq("edition_id", editionId)
-        .in("participant_id", ids)
-        .order("created_at"),
+        .from("participants")
+        .insert({ display_name: name, user_id: userId, access_token: token })
+        .select("id, display_name")
+        .single(),
     );
-    return toAccess(rows ?? []);
+    return { id: row.id, name: row.display_name, token };
   },
 
-  async linkTokenToUser(token, userId) {
-    const rows = check(await db().from("entries").select("participant_id").eq("access_token", token));
-    const ids = [...new Set((rows ?? []).map((r: any) => r.participant_id))];
-    if (ids.length === 0) return;
-    check(await db().from("participants").update({ user_id: userId }).in("id", ids).is("user_id", null));
+  async renameParticipant(participantId, name) {
+    check(await db().from("participants").update({ display_name: name }).eq("id", participantId));
+  },
+
+  async mergeParticipants(fromId, intoId) {
+    const rows = check(await db().from("participants").select("id, user_id").in("id", [fromId, intoId])) ?? [];
+    const from = rows.find((r: any) => r.id === fromId);
+    const into = rows.find((r: any) => r.id === intoId);
+    if (!from || !into) throw new Error("Participante não encontrado");
+    check(await db().from("entries").update({ participant_id: intoId }).eq("participant_id", fromId));
+    if (!into.user_id && from.user_id) {
+      check(await db().from("participants").update({ user_id: from.user_id }).eq("id", intoId));
+    }
+    check(await db().from("participants").delete().eq("id", fromId));
+  },
+
+  async deleteParticipant(participantId) {
+    const entries = check(
+      await db().from("entries").select("id").eq("participant_id", participantId).limit(1),
+    );
+    if (entries?.length) throw new Error("Este participante ainda tem palpites.");
+    check(await db().from("participants").delete().eq("id", participantId));
+  },
+
+  async linkParticipantToUser(participantId, userId) {
+    check(await db().from("participants").update({ user_id: userId }).eq("id", participantId));
   },
 
   async updateEdition(editionId, patch) {
@@ -356,6 +365,49 @@ export const supabaseRepo: Repo = {
 
   async deleteEdition(editionId) {
     check(await db().from("editions").delete().eq("id", editionId));
+  },
+
+  async updateTeam(teamId, patch) {
+    check(
+      await db()
+        .from("teams")
+        .update({
+          name: patch.name,
+          short_name: patch.shortName,
+          code: patch.code,
+          color: patch.color,
+          color2: patch.color2,
+        })
+        .eq("id", teamId),
+    );
+  },
+
+  async setTeamCrest(teamId, png) {
+    const storage = db().storage;
+    // Cria o depósito público de escudos no primeiro uso.
+    const existing = await storage.getBucket(CREST_BUCKET);
+    if (existing.error) {
+      const created = await storage.createBucket(CREST_BUCKET, {
+        public: true,
+        fileSizeLimit: 1024 * 1024,
+        allowedMimeTypes: ["image/png"],
+      });
+      if (created.error && !/exist/i.test(created.error.message)) throw new Error(created.error.message);
+    }
+    const path = `${teamId}.png`;
+    const uploaded = await storage
+      .from(CREST_BUCKET)
+      .upload(path, png, { contentType: "image/png", upsert: true, cacheControl: "31536000" });
+    if (uploaded.error) throw new Error(uploaded.error.message);
+    // O "?v=" muda a cada envio, para o navegador não mostrar o escudo antigo.
+    const url = `${storage.from(CREST_BUCKET).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+    check(await db().from("teams").update({ crest_url: url }).eq("id", teamId));
+    return url;
+  },
+
+  async removeTeamCrest(teamId) {
+    check(await db().from("teams").update({ crest_url: null }).eq("id", teamId));
+    await db().storage.from(CREST_BUCKET).remove([`${teamId}.png`]);
   },
 
   async isAdmin(userId) {

@@ -2,10 +2,10 @@
 
 import { Check, Link2 } from "lucide-react";
 import { useState } from "react";
-import { adminEntryLink } from "../actions";
+import { adminParticipantLink } from "../actions";
 
 /** Copia o link pessoal do participante, para o admin repassar. */
-export function LinkButton({ entryId }: { entryId: string }) {
+export function LinkButton({ participantId }: { participantId: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -14,7 +14,7 @@ export function LinkButton({ entryId }: { entryId: string }) {
       title="Copiar link pessoal do participante"
       className="btn-outline size-10 min-h-10 px-0"
       onClick={async () => {
-        const url = await adminEntryLink(entryId);
+        const url = await adminParticipantLink(participantId);
         if (!url) return;
         try {
           await navigator.clipboard.writeText(url);

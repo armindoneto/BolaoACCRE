@@ -3,6 +3,8 @@ import type { EditionBundle } from "@/lib/data";
 
 export interface EntryPayload {
   name: string;
+  /** Só no admin: participante já cadastrado que recebe o palpite. */
+  participantId?: string;
   nickname: string;
   picks: Record<number, string>;
   /** true quando a pessoa já viu o aviso de palpite repetido e quis manter. */

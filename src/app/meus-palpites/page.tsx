@@ -14,7 +14,7 @@ export default async function MeusPalpitesPage() {
 
   if (!user) {
     return (
-      <div className="space-y-4">
+      <div className="mx-auto max-w-3xl space-y-4">
         <PageTitle title="Meus palpites" />
         <section className="card space-y-3 p-4 text-sm">
           <p>
@@ -35,16 +35,21 @@ export default async function MeusPalpitesPage() {
     );
   }
 
-  const access = bundle ? await repo().getByUser(user.id, bundle.edition.id) : null;
+  const participant = await repo().getParticipantByUser(user.id);
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <PageTitle title="Meus palpites" subtitle={user.email ?? undefined}>
         <form action={signOut}>
           <button type="submit" className="btn-outline">Sair</button>
         </form>
       </PageTitle>
-      {bundle && access ? (
-        <MyEntries bundle={bundle} access={access} token={null} />
+      {participant ? (
+        <>
+          {bundle && <MyEntries bundle={bundle} participant={participant} token={null} />}
+          <Link href={`/participante/${participant.id}`} className="btn-primary min-h-12 w-full">
+            Ver meu perfil, pontuação e histórico
+          </Link>
+        </>
       ) : (
         <EmptyState title="Nenhum palpite nesta conta">
           {bundle && entriesOpen(bundle.edition) ? (

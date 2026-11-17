@@ -62,7 +62,7 @@ export function ResultsForm({ editionId, matches }: { editionId: string; matches
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <ul className="card divide-y divide-border/60">
+      <ul className="card grid divide-y divide-border/60 lg:grid-cols-2 lg:gap-x-6 lg:px-3">
         {matches.map((m) => (
           <li key={m.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 py-2">
             <span className="flex min-w-0 items-center justify-end gap-2 text-right text-sm font-medium">
@@ -112,7 +112,7 @@ export function ResultsForm({ editionId, matches }: { editionId: string; matches
           {feedback.text}
         </p>
       )}
-      <div className="sticky bottom-4 z-10">
+      <div className="sticky bottom-4 z-10 lg:mx-auto lg:max-w-md">
         <button type="submit" className="btn-primary min-h-14 w-full text-base shadow-lg" disabled={pending || !dirty}>
           {pending ? "Salvando…" : dirty ? "Salvar resultados" : "Nada para salvar"}
         </button>

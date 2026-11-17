@@ -1,17 +1,19 @@
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageTitle } from "@/components/page-title";
+import { EntryDetail } from "@/components/entry-detail";
 import { PendingNotice, PeriodTabs } from "@/components/period";
+import { TrophyRow } from "@/components/trophies";
+import { currentPeriod, pickCurrentEdition, repo } from "@/lib/data";
+import { getPublicEditions, participantHistory, trophiesOf, trophyTotal } from "@/lib/history";
 import { prizeStyle } from "@/lib/prize-style";
-import { TeamBadge } from "@/components/team-badge";
-import { computeBundle, currentPeriod, getCurrentBundle } from "@/lib/data";
 import { formatPoints } from "@/lib/scoring";
 import { cn } from "@/lib/cn";
-import { selectPeriod, teamMap, tiersOf } from "@/lib/view";
+import { selectPeriod } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
 
+/** Perfil do participante: troféus, palpites da edição atual e histórico. Não exige conta. */
 export default async function ParticipantePage({
   params,
   searchParams,
@@ -20,123 +22,132 @@ export default async function ParticipantePage({
   searchParams: Promise<{ turno?: string }>;
 }) {
   const { id } = await params;
-  const bundle = await getCurrentBundle();
-  const entries = bundle?.entries.filter((e) => e.participantId === id) ?? [];
-  if (!bundle || entries.length === 0 || bundle.edition.status === "open_for_entries") notFound();
+  const participant = await repo().getParticipant(id);
+  if (!participant) notFound();
 
-  const result = computeBundle(bundle);
-  const period = selectPeriod(result.periods, (await searchParams).turno, currentPeriod(result));
-  const teams = teamMap(bundle);
-  const tiers = tiersOf(bundle);
-  const [first] = period.period.rounds;
-  const lastRound = Math.max(period.lastRoundWithResult, first - 1);
-  const rounds = Array.from({ length: Math.max(lastRound - first + 1, 0) }, (_, i) => first + i);
+  const all = await getPublicEditions();
+  const history = participantHistory(all, id);
+  const trophies = trophiesOf(all, id);
+  const currentId = pickCurrentEdition(all.map((e) => e.bundle.edition))?.id;
+  const current = history.find((h) => h.bundle.edition.id === currentId);
+  const past = history.filter((h) => h !== current);
+  const totalEntries = history.reduce((sum, h) => sum + h.entries.length, 0);
+  // Enquanto os palpites estão abertos, os times escolhidos ficam escondidos.
+  const hidden = current?.bundle.edition.status === "open_for_entries";
+  const period =
+    current && !hidden
+      ? selectPeriod(current.result.periods, (await searchParams).turno, currentPeriod(current.result))
+      : null;
 
   return (
-    <div className="space-y-4">
-      <Link href={`/?turno=${period.period.id}`} className="no-print inline-flex items-center gap-1 text-sm font-semibold text-primary">
+    <div className="space-y-5">
+      <Link href="/" className="no-print inline-flex items-center gap-1 text-sm font-semibold text-primary">
         <ChevronLeft className="size-4" /> Classificação
       </Link>
-      <PageTitle
-        title={entries[0].participantName}
-        subtitle={`${entries.length} ${entries.length === 1 ? "palpite" : "palpites"} · ${bundle.edition.name}`}
-      />
-      <PeriodTabs periods={result.periods} selected={period.period.id} basePath={`/participante/${id}`} />
-      <PendingNotice bundle={bundle} period={period} />
 
-      {entries.map((entry, index) => {
-        const row = period.ranking.find((r) => r.entryId === entry.id)!;
-        const style = prizeStyle(row.prizes[0]);
-        // Pontos por rodada (soma dos times do palpite) e bônus de fim de turno.
-        const perRound = new Map<number, number>();
-        let periodEnd = 0;
-        for (const tier of tiers) {
-          for (const item of period.teamScores[entry.picks[tier]]?.items ?? []) {
-            if (item.round !== undefined) perRound.set(item.round, (perRound.get(item.round) ?? 0) + item.tenths);
-            else periodEnd += item.tenths;
-          }
-        }
-        const maxAbs = Math.max(10, ...rounds.map((r) => Math.abs(perRound.get(r) ?? 0)));
+      <header className="card flex flex-wrap items-center justify-between gap-4 p-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-extrabold text-primary-fg">
+            {participant.name.trim().charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-extrabold tracking-tight">{participant.name}</h1>
+            <p className="text-sm text-muted">
+              {totalEntries === 0
+                ? "Ainda sem palpites"
+                : `${totalEntries} ${totalEntries === 1 ? "palpite" : "palpites"} em ${history.length} ${history.length === 1 ? "edição" : "edições"}`}
+            </p>
+          </div>
+        </div>
+        <div>
+          <TrophyRow trophies={trophies} size={48} labels className="gap-3" />
+          <p className="mt-1 text-center text-xs text-muted">
+            {trophyTotal(trophies) === 0 ? "Nenhum prêmio ainda" : "Prêmios conquistados"}
+          </p>
+        </div>
+      </header>
 
-        return (
-          <section key={entry.id} className={cn("card overflow-hidden", style?.row)}>
-            <div className="flex items-center gap-3 p-4">
-              <span
-                className={cn(
-                  "tabular flex size-11 shrink-0 items-center justify-center rounded-full font-bold",
-                  style ? style.pos : "bg-border/60",
-                )}
-              >
-                {row.position}º
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate font-bold">{entry.nickname ?? `Palpite ${index + 1}`}</h2>
-                <p className="text-xs text-muted">
-                  {[
-                    `de ${period.ranking.length} palpites`,
-                    style && `${style.icon} ${style.label}`,
-                    row.sharedWith > 1 && `posição dividida com ${row.sharedWith - 1}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </div>
-              <div className="text-right leading-none">
-                <span className="tabular text-2xl font-extrabold">{formatPoints(row.tenths)}</span>
-                <span className="block text-[10px] font-medium uppercase tracking-wide text-muted">pts</span>
-              </div>
+      {current && hidden && (
+        <section className="card p-4">
+          <h2 className="font-bold">{current.bundle.edition.name}</h2>
+          <p className="text-sm text-muted">
+            {current.entries.length} {current.entries.length === 1 ? "palpite feito" : "palpites feitos"}. Os times
+            aparecem quando o bolão começar.
+          </p>
+        </section>
+      )}
+
+      {current && period && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <h2 className="text-lg font-bold">{current.bundle.edition.name}</h2>
+            <div className="w-full sm:w-80">
+              <PeriodTabs
+                periods={current.result.periods}
+                selected={period.period.id}
+                basePath={`/participante/${id}`}
+              />
             </div>
+          </div>
+          <PendingNotice bundle={current.bundle} period={period} />
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            {current.entries.map(({ entry, label }) => (
+              <EntryDetail key={entry.id} bundle={current.bundle} period={period} entry={entry} label={label} />
+            ))}
+          </div>
+        </section>
+      )}
 
-            <ul className="grid grid-cols-1 border-t border-border bg-card sm:grid-cols-2">
-              {tiers.map((tier) => {
-                const team = teams.get(entry.picks[tier]);
-                if (!team) return null;
-                return (
-                  <li key={tier} className="flex items-center gap-2.5 border-b border-border/60 px-4 py-2 text-sm">
-                    <span className="w-5 text-xs font-bold text-muted">{tier}</span>
-                    <TeamBadge team={team} size={26} />
-                    <span className="flex-1 truncate font-medium">{team.shortName}</span>
-                    <span className="tabular font-semibold">{formatPoints(row.tierTenths[tier] ?? 0)}</span>
-                  </li>
-                );
-              })}
-            </ul>
+      {past.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold">Edições anteriores</h2>
+          <div className="grid items-start gap-3 lg:grid-cols-2">
+            {past.map(({ bundle, entries }) => (
+              <article key={bundle.edition.id} className="card overflow-hidden">
+                <Link
+                  href={bundle.edition.status === "finished" ? `/historico/${bundle.edition.id}` : "/"}
+                  className="flex items-center justify-between border-b border-border px-4 py-2.5 hover:bg-primary-soft"
+                >
+                  <h3 className="font-bold">{bundle.edition.name}</h3>
+                  <ChevronRight className="size-4 text-muted" />
+                </Link>
+                <ul className="divide-y divide-border/60">
+                  {entries.map(({ entry, label, periods }) => (
+                    <li key={entry.id} className="px-4 py-2.5">
+                      <p className="text-sm font-semibold">
+                        {label}
+                        {entry.nickname && <span className="font-normal text-muted"> · {entry.nickname}</span>}
+                      </p>
+                      <ul className="mt-1 grid grid-cols-2 gap-2">
+                        {periods.map((p) => {
+                          const style = p.status === "final" ? prizeStyle(p.prizes[0]) : null;
+                          return (
+                            <li
+                              key={p.id}
+                              className={cn("rounded-xl border border-border px-2.5 py-1.5 text-sm", style?.row)}
+                            >
+                              <span className="block text-[11px] font-medium uppercase tracking-wide text-muted">
+                                {p.name}
+                              </span>
+                              <span className="tabular font-bold">{p.position}º</span>
+                              <span className="tabular text-muted"> de {p.of} · {formatPoints(p.tenths)} pts</span>
+                              {style && <span className="ml-1">{style.icon}</span>}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
-            {rounds.length > 0 && (
-              <div className="bg-card p-4">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">Pontos por rodada</h3>
-                <div className="flex h-28 items-stretch gap-[3px]">
-                  {rounds.map((r) => {
-                    const value = perRound.get(r) ?? 0;
-                    const height = `${Math.max((Math.abs(value) / maxAbs) * 100, 2)}%`;
-                    return (
-                      <div key={r} className="flex min-w-0 flex-1 flex-col" title={`Rodada ${r}: ${formatPoints(value)} pts`}>
-                        <div className="flex flex-1 flex-col justify-end">
-                          <span className="tabular mb-0.5 text-center text-[9px] leading-none text-muted">
-                            {formatPoints(value)}
-                          </span>
-                          <div
-                            className={cn("rounded-t-sm", value < 0 ? "bg-danger" : "bg-primary")}
-                            style={{ height }}
-                          />
-                        </div>
-                        <span className="tabular mt-1 text-center text-[9px] leading-none text-muted">{r}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-xs text-muted">
-                  {periodEnd !== 0
-                    ? `Mais ${formatPoints(periodEnd)} pts de bônus de fim de turno.`
-                    : period.status === "final"
-                      ? "Sem bônus de fim de turno."
-                      : "Os bônus de fim de turno entram quando o turno terminar."}
-                </p>
-              </div>
-            )}
-          </section>
-        );
-      })}
+      {history.length === 0 && (
+        <p className="card p-6 text-center text-sm text-muted">Este participante ainda não fez palpites.</p>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { EmptyState } from "@/components/page-title";
 import { TeamBadge } from "@/components/team-badge";
-import { teamMap, tiersOf } from "@/lib/view";
+import { entryLabels, teamMap, tiersOf } from "@/lib/view";
 import { adminDeleteEntry } from "../actions";
 import { EditionHeader } from "../edition-header";
 import { adminBundle } from "../shared";
@@ -15,6 +15,7 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
   const { edition } = bundle;
   const teams = teamMap(bundle);
   const tiers = tiersOf(bundle);
+  const labels = entryLabels(bundle);
   const keyCount = new Map<string, number>();
   for (const e of bundle.entries) keyCount.set(e.selectionKey, (keyCount.get(e.selectionKey) ?? 0) + 1);
   const entries = [...bundle.entries].sort(
@@ -24,7 +25,7 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
   return (
     <div className="space-y-4">
       <EditionHeader edition={edition} title={`Palpites (${entries.length})`} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:max-w-md">
         <Link href={`/admin/palpites/novo?edicao=${edition.id}`} className="btn-primary min-h-12">
           <Plus className="size-4" /> Novo palpite
         </Link>
@@ -36,12 +37,12 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
       {entries.length === 0 ? (
         <EmptyState title="Nenhum palpite ainda" />
       ) : (
-        <ul className="space-y-2">
+        <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {entries.map((entry) => (
             <li key={entry.id} className="card p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{entry.participantName}</p>
+                  <p className="truncate font-semibold">{labels.get(entry.id)}</p>
                   <p className="truncate text-xs text-muted">
                     {entry.nickname ?? "sem apelido"}
                     {(keyCount.get(entry.selectionKey) ?? 0) > 1 && (
@@ -50,7 +51,7 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  <LinkButton entryId={entry.id} />
+                  <LinkButton participantId={entry.participantId} />
                   <Link
                     href={`/admin/palpites/${entry.id}?edicao=${edition.id}`}
                     aria-label="Editar"
@@ -60,7 +61,7 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
                   </Link>
                   <ConfirmButton
                     action={adminDeleteEntry.bind(null, entry.id)}
-                    confirm={`Excluir o palpite de ${entry.participantName}?`}
+                    confirm={`Excluir o palpite ${labels.get(entry.id)}?`}
                     className="btn-danger size-10 min-h-10 px-0"
                   >
                     <Trash2 className="size-4" />

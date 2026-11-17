@@ -17,7 +17,7 @@ export default async function JogosPage({ searchParams }: { searchParams: Promis
           ? "Nenhum jogo cadastrado ainda."
           : `${bundle.matches.length} jogos em ${rounds.size} rodadas, ${withResult} com resultado.`}
       </p>
-      <section className="card space-y-3 p-4">
+      <section className="card max-w-3xl space-y-3 p-4">
         <h2 className="font-bold">Importar por CSV</h2>
         <div className="space-y-1 text-sm text-muted">
           <p>Cole a tabela inteira da temporada, um jogo por linha:</p>
