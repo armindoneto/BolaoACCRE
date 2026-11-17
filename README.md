@@ -55,4 +55,57 @@ Quando uma atualização do site trouxer um arquivo novo em `supabase/migrations
 
 ## Ciclo de uma edição
 
-`Rascunho` → `Palpites abertos` (formulário liberado; os times de cada palpite ficam escondidos) → `Em andamento` (palpites travados, classificação pública) → `Encerrada` (vai para o Histórico). Para um novo bolão, use **Edições → Nova edição a partir de uma anterior** e ajuste regras e níveis.
+Em `/admin` → **Edições**, cada edição tem um botão para o próximo passo:
+
+1. **Rascunho**: não aparece no site.
+2. **Palpites abertos**: a página inicial vira o convite para palpitar (os times de cada palpite ficam escondidos).
+3. **Em andamento**: palpites travados; a classificação é a página inicial.
+4. **Encerrada**: sai da página inicial e vai para o Histórico, que mostra a classificação final de cada turno e os pontos de cada time.
+
+Para um novo bolão, use **Nova edição a partir de uma anterior** e ajuste regras e níveis.
+
+## Importar bolões antigos
+
+Em `/admin` → **Edições** → **Importar bolão antigo**. Copie as células da planilha e cole (o Excel separa as colunas por tabulação; ponto e vírgula também funciona). O botão **Conferir dados** aponta os problemas e mostra um resumo antes de gravar.
+
+**1. Níveis e times**, uma linha por nível:
+
+```
+1: Flamengo, Palmeiras
+2: Cruzeiro, Mirassol
+```
+
+**2. Pontos de cada time**, como uma lista de lançamentos. Escreva o nome da etapa numa linha, depois o nome do time e, embaixo, os lançamentos dele: pontos, descrição e, se quiser, um complemento (a rodada).
+
+```
+1º turno
+Flamengo
+3,0	Vitória	1ª Rodada
+0,5	Vitória fora de casa	1ª Rodada
+Palmeiras
+1,0	Empate	1ª Rodada
+2º turno
+Flamengo
+1,0	Empate	21ª Rodada
+3,0	Vitória	22ª Rodada
+```
+
+- A descrição aparece no site **exatamente como estiver escrita**. Nenhuma regra é aplicada nem precisa ser cadastrada: cada bolão antigo pode ter os seus próprios tipos de ponto.
+- O total do time na etapa é a soma dos lançamentos.
+- A linha com o nome da etapa vale para todos os times que vêm depois dela. Com uma etapa só, ela é dispensável.
+- O time pode ser escrito pelo nome, nome curto ou sigla.
+- Um time sem nenhum lançamento numa etapa fica com zero, e o resumo avisa.
+
+**3. Palpites**, uma linha por palpite:
+
+| palpite | participante | N1 | N2 | … | N10 | pos 1 | pts 1 | pos 2 | pts 2 |
+|---|---|---|---|---|---|---|---|---|---|
+| João 1 | João Silva | Flamengo | Cruzeiro | … | Remo | 1 | 312,5 | 7 | 280 |
+
+- Os times vão na ordem dos níveis.
+- `pos N` (posição final na etapa N) é opcional. Sem ela, a posição sai do total de pontos, com desempate pelo time do nível 1, depois nível 2, e assim por diante.
+- `pts N` é opcional e serve só para conferência: o site avisa se não bater com a soma dos times do palpite.
+- Participantes que ainda não existem são cadastrados automaticamente; os que já existem são reconhecidos pelo nome.
+- São premiados o 1º, o 2º, o 3º e o último de cada etapa.
+
+Para corrigir uma edição importada, exclua-a (em Editar) e importe de novo.

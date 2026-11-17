@@ -122,7 +122,8 @@ export interface EngineInput {
 export interface LedgerItem {
   teamId: string;
   periodId: string;
-  source: "match" | "period_end";
+  /** "imported": lançamento de uma edição antiga, trazido pronto da planilha. */
+  source: "match" | "period_end" | "imported";
   /** Preenchido quando source = "match". */
   matchId?: string;
   round?: number;
@@ -131,6 +132,8 @@ export interface LedgerItem {
   label: string;
   /** Pontos em décimos. */
   tenths: number;
+  /** Só em lançamentos importados: complemento escrito na planilha (ex.: "22ª Rodada"). */
+  detail?: string;
 }
 
 export interface StandingRow {
@@ -201,4 +204,35 @@ export interface PeriodResult {
 
 export interface EngineResult {
   periods: PeriodResult[];
+}
+
+// ---------- Edições importadas (bolões antigos) ----------
+
+/** Pontos de um time numa etapa, como vieram da planilha. */
+export interface ImportedTeamScore {
+  /** Total em décimos. */
+  tenths: number;
+  /**
+   * Lançamentos, na ordem da planilha. A descrição é texto livre: vale o que
+   * estiver escrito, sem ligação com nenhuma regra.
+   */
+  items: { label: string; tenths: number; detail?: string }[];
+}
+
+export interface ImportedPeriod {
+  /** Mesmo id de `rules.periods`. */
+  id: string;
+  /** id do time -> pontos na etapa. */
+  teamScores: Record<string, ImportedTeamScore>;
+  /**
+   * Posição final de cada palpite (id do palpite -> posição), quando a
+   * planilha traz a classificação. Sem isso, a posição sai do total de pontos
+   * e dos critérios de desempate da edição.
+   */
+  positions?: Record<string, number>;
+}
+
+/** Resultado final de uma edição antiga, guardado pronto em vez de calculado. */
+export interface ImportedResults {
+  periods: ImportedPeriod[];
 }

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { computeEdition, type EngineResult, type PeriodResult } from "@/lib/scoring";
+import { buildImportedResult, computeEdition, type EngineResult, type PeriodResult } from "@/lib/scoring";
 import { memoryRepo } from "./memory";
 import { serviceKey, supabaseRepo } from "./supabase";
 import type { Edition, EditionBundle, Repo } from "./types";
@@ -20,15 +20,15 @@ export const listEditions = cache(() => repo().listEditions());
 export const getBundle = cache((editionId: string) => repo().getBundle(editionId));
 
 /**
- * Edição mostrada nas páginas públicas: a que está em andamento; senão a que
- * está recebendo palpites; senão a última encerrada. Rascunhos nunca aparecem.
+ * Edição em vigor, mostrada nas páginas públicas: a que está em andamento ou,
+ * senão, a que está recebendo palpites. Rascunhos não aparecem, e edições
+ * encerradas ficam só no Histórico.
  */
 export function pickCurrentEdition(editions: Edition[]): Edition | null {
   const bySeason = [...editions].sort((a, b) => b.season - a.season);
   return (
     bySeason.find((e) => e.status === "running") ??
     bySeason.find((e) => e.status === "open_for_entries") ??
-    bySeason.find((e) => e.status === "finished") ??
     null
   );
 }
@@ -38,13 +38,27 @@ export const getCurrentBundle = cache(async (): Promise<EditionBundle | null> =>
   return current ? getBundle(current.id) : null;
 });
 
-/** Roda o motor de cálculo para uma edição. Barato: é feito a cada visita. */
+/**
+ * Resultado de uma edição. Edições normais passam pelo motor de cálculo (é
+ * barato: roda a cada visita). Edições antigas importadas usam os números
+ * que vieram prontos da planilha.
+ */
 export function computeBundle(bundle: EditionBundle): EngineResult {
+  const teams = bundle.teams.map((t) => ({ id: t.id, tier: t.tier }));
+  const entries = bundle.entries.map((e) => ({ id: e.id, picks: e.picks }));
+  if (bundle.edition.importedResults) {
+    return buildImportedResult({
+      rules: bundle.edition.rules,
+      teams,
+      entries,
+      imported: bundle.edition.importedResults,
+    });
+  }
   return computeEdition({
     rules: bundle.edition.rules,
-    teams: bundle.teams.map((t) => ({ id: t.id, tier: t.tier })),
+    teams,
     matches: bundle.matches,
-    entries: bundle.entries.map((e) => ({ id: e.id, picks: e.picks })),
+    entries,
     standingsCriteria: bundle.edition.standingsCriteria,
     manualStandingsOrder: bundle.edition.manualStandingsOrder,
   });

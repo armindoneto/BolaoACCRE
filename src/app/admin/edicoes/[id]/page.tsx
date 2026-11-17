@@ -22,6 +22,12 @@ export default async function EditarEdicaoPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-extrabold tracking-tight">Editar edição</h1>
+      {edition.importedResults && (
+        <p className="rounded-2xl border border-warn/30 bg-warn-soft p-3 text-sm text-warn">
+          Esta é uma edição antiga importada: os pontos vieram prontos da planilha. Para corrigir os números,
+          exclua a edição e importe de novo.
+        </p>
+      )}
       <EditionForm
         editionId={edition.id}
         locked={bundle.entries.length > 0 || bundle.matches.length > 0}
@@ -44,13 +50,13 @@ export default async function EditarEdicaoPage({ params }: { params: Promise<{ i
           ),
         }}
       />
-      {edition.status === "draft" && (
+      {(edition.status === "draft" || edition.importedResults) && (
         <ConfirmButton
           action={deleteEdition.bind(null, edition.id)}
           confirm={`Excluir a edição "${edition.name}"? Isso apaga também os jogos e palpites dela.`}
           className="btn-danger w-full"
         >
-          Excluir este rascunho
+          {edition.importedResults ? "Excluir esta edição importada" : "Excluir este rascunho"}
         </ConfirmButton>
       )}
     </div>

@@ -18,6 +18,10 @@ Idioma da interface: português (pt-BR). Os números usam vírgula decimal (ex.:
 - A edição tem **duas etapas independentes, cada uma com premiação própria**: 1º turno (rodadas 1–19) e 2º turno (rodadas 20–38). Os palpites são os mesmos nas duas.
 - **Ao fim do 1º turno, tudo zera**: a classificação do bolão *e* a tabela do campeonato usada nas regras. O 2º turno é calculado só com os jogos das rodadas 20–38, como se fosse um campeonato novo.
 - Um **jogo adiado conta para o turno da sua rodada original**, mesmo se for disputado depois. Enquanto houver jogo pendente, o resultado final daquele turno (bônus de fim de turno e premiação) fica **pendente** até o jogo acontecer. A interface mostra isso claramente.
+- Uma edição passa por **três estados** (além do rascunho, que não aparece no site):
+  1. **Palpites abertos** (`open_for_entries`): a página inicial é o convite para palpitar, sem classificação.
+  2. **Em andamento** (`running`): não aceita mais palpites, e a classificação é a página inicial.
+  3. **Encerrada** (`finished`): sai da página inicial e fica só no Histórico.
 - **As regras de pontuação e de desempate mudam a cada edição.** Por isso nada de regra pode ficar fixo no código. Tudo vem da configuração da edição (veja abaixo).
 
 ### Regras da edição atual (Brasileirão 2026)
@@ -133,6 +137,8 @@ Requisitos do motor:
 - A tabela do campeonato segue os critérios da CBF: pontos, vitórias, saldo de gols, gols pró, confronto direto, cartões vermelhos, cartões amarelos e sorteio. Os critérios ficam configuráveis por campeonato. Implemente pelo menos até gols pró e confronto direto, e permita que o admin defina a ordem manualmente nos casos restantes.
 - **Testes obrigatórios** para cada tipo de regra e para os desempates, incluindo: um empate total que divide a posição, o exemplo de premiação acima (três empatados em 2º e o próximo levando o 3º), um empate no último lugar, e um turno pendente por jogo adiado.
 
+**Edições antigas importadas** não passam pelo motor por jogo: guardam em `editions.imported_results` os lançamentos de pontos de cada time por etapa e, se a planilha trouxer, a posição final de cada palpite. Cada lançamento é pontos + descrição em **texto livre** (+ complemento opcional, como a rodada): vale o que estiver escrito, **sem ligação com nenhuma regra**, porque cada bolão antigo tinha regras próprias e não vale a pena cadastrá-las. O total do palpite continua sendo a soma dos seus times (`src/lib/scoring/imported.ts`).
+
 O recálculo é feito **sempre que o admin salva um resultado**. Recalcular a edição inteira é barato, então não vale otimizar. Os resultados podem ficar gravados em tabelas de cache (`team_scores`, `entry_scores`) ou ser calculados na hora. Comece pelo mais simples.
 
 ---
@@ -141,11 +147,11 @@ O recálculo é feito **sempre que o admin salva um resultado**. Recalcular a ed
 
 - `competitions`: id, nome (ex.: "Brasileirão Série A"), critérios de desempate da tabela
 - `teams`: id, nome, nome curto, sigla, cores, escudo (url; as imagens ficam no Supabase Storage)
-- `editions`: id, competition_id, temporada, nome, status (`draft` | `open_for_entries` | `running` | `finished`), `rules` (jsonb), prazo de palpites, prêmios (texto livre)
+- `editions`: id, competition_id, temporada, nome, status (`draft` | `open_for_entries` | `running` | `finished`), `rules` (jsonb), prazo de palpites, prêmios (texto livre), `imported_results` (jsonb; só em edições antigas importadas)
 - `edition_teams`: edition_id, team_id, tier (nível)
 - `matches`: id, edition_id, rodada, data, mandante_id, visitante_id, gols_mandante, gols_visitante (nulos até o resultado)
 - `participants`: id, nome de exibição, contato opcional (`user_id` existe, mas não é usado enquanto os participantes não têm conta)
-- `entries` (palpites): id, edition_id, `name` (nome do palpite), participant_id (nulo até o admin atribuir), `selection_key` (chave canônica para achar palpites repetidos), criado em (a coluna `access_token` existe, mas não é usada)
+- `entries` (palpites): id, edition_id, `name` (nome do palpite), participant_id (nulo até o admin atribuir), `selection_key` (chave canônica para achar palpites repetidos), criado em
 - `entry_picks`: entry_id, tier, team_id
 - `admins`: user_id
 
@@ -158,18 +164,18 @@ Todas as tabelas ficam no schema `bolao` do Postgres (não no `public`), porque 
 ## Páginas
 
 Públicas (sem login):
-- `/`: **classificação** da edição atual, com abas 1º turno / 2º turno (abre no turno em andamento). Mostra posição, nome do palpite, participante, pontos e os 10 escudos escolhidos. Busca pelo nome. Posições empatadas aparecem iguais, em ranking denso (ex.: 1º, 2º, 2º, 3º). Os premiados (1º, 2º, 3º e último) ficam em destaque. Se o turno estiver pendente por jogo adiado, um aviso aparece no topo.
+- `/`: depende do estado da edição em vigor. Com palpites abertos, é o convite para palpitar (botão grande para `/palpite`, como funciona e quem já palpitou). Em andamento, é a **classificação**, com abas 1º turno / 2º turno (abre no turno em andamento). Mostra posição, nome do palpite, participante, pontos e os 10 escudos escolhidos. Busca pelo nome. Posições empatadas aparecem iguais, em ranking denso (ex.: 1º, 2º, 2º, 3º). Os premiados (1º, 2º, 3º e último) ficam em destaque. Se o turno estiver pendente por jogo adiado, um aviso aparece no topo.
 - `/participantes`: lista, em ordem alfabética, dos participantes que têm palpite na edição em vigor; cada um com os nomes dos seus palpites embaixo e link para o perfil.
 - `/participante/[id]`: perfil do participante, com os palpites da edição atual (pontuação por time e por rodada), o histórico nas edições anteriores e os troféus (ouro, prata, bronze e vermelho, com o número de vezes que ganhou cada prêmio).
 - `/times`: pontuação de cada time da edição, organizada por nível, com o detalhamento (vitórias, empates, goleadas, fora de casa, bônus de fim de turno).
 - `/campeonato`: tabela do turno e resultados por rodada.
 - `/regras`: as regras da edição, geradas a partir do JSON em linguagem simples.
-- `/historico` e `/historico/[edicao]`: edições anteriores, com os premiados de cada turno (1º, 2º, 3º e último) e a classificação final de cada turno.
+- `/historico` e `/historico/[edicao]`: edições encerradas. Cada uma mostra **só** a classificação final de cada turno (com os premiados) e os pontos de cada time, com o detalhamento. Regras e tabela do campeonato não aparecem no histórico.
 - `/palpite`: formulário de palpite (só quando a edição está `open_for_entries`), seguido de uma tela de confirmação.
 
 Admin (`/admin`, exige login de admin):
 - **Lançar resultados**: lista de jogos por rodada com dois campos de placar em cada, salvando de uma vez e com o recálculo automático. Precisa ser rápido de usar no celular.
-- **Edições**: criar e editar edição, níveis e times, e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras.
+- **Edições**: criar e editar edição, níveis e times, e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras. Botão para passar a edição ao próximo estado. **Importar bolão antigo**: cola os dados da planilha (níveis; lançamentos de pontos de cada time por etapa; palpites com participante, times e, opcionalmente, posição e pontos) e grava a edição direto no Histórico.
 - **Jogos**: cadastrar a tabela da temporada (importação por CSV).
 - **Palpites**: revisar os palpites que chegam (ajustar o nome e atribuir a um participante), criar, editar ou excluir. Exportar a classificação em PDF ou imagem para mandar no WhatsApp.
 - **Participantes**: cadastrar (só o nome), renomear e excluir participantes.
@@ -212,7 +218,7 @@ Muitos participantes são leigos digitalmente. **Nenhuma ação pública exige c
 4. Páginas públicas: classificação, times, campeonato e regras.
 5. Formulário de palpite sem conta, com aviso de repetido.
 6. Participantes cadastrados pelo admin, revisão dos palpites, perfis e troféus.
-7. Histórico e importação das edições antigas (planilhas).
+7. Histórico e importação das edições antigas (planilhas), pela tela "Importar bolão antigo".
 8. (Futuro) Importar resultados automaticamente de uma API de futebol.
 
 ---

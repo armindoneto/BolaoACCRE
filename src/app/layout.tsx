@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import { BottomNav, TopNav } from "@/components/nav";
 import { ThemeProvider, ThemeToggle } from "@/components/theme";
-import { isDemoMode } from "@/lib/data";
+import { isDemoMode, listEditions, pickCurrentEdition } from "@/lib/data";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -20,7 +20,9 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // O menu muda de "Classificação" para "Palpitar" enquanto o bolão recebe palpites.
+  const open = pickCurrentEdition(await listEditions().catch(() => []))?.status === "open_for_entries";
   return (
     <html lang="pt-BR" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="flex min-h-full flex-col font-sans">
@@ -34,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Bolão ACC-RE
               </Link>
               <div className="ml-auto flex items-center gap-1">
-                <TopNav />
+                <TopNav entriesOpen={open} />
                 <ThemeToggle />
               </div>
             </div>
@@ -49,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/regras" className="hover:text-fg">Regras</Link>
             <Link href="/admin" className="hover:text-fg">Administração</Link>
           </footer>
-          <BottomNav />
+          <BottomNav entriesOpen={open} />
         </ThemeProvider>
       </body>
     </html>

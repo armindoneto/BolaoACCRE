@@ -1,4 +1,4 @@
-import type { Rules, StandingsCriterion } from "@/lib/scoring";
+import type { ImportedResults, Rules, StandingsCriterion } from "@/lib/scoring";
 
 export type EditionStatus = "draft" | "open_for_entries" | "running" | "finished";
 
@@ -36,6 +36,8 @@ export interface Edition {
   prizesText: string | null;
   /** turno -> ids dos times, para desempates que o sistema não resolve sozinho. */
   manualStandingsOrder: Record<string, string[]>;
+  /** Só em edições antigas importadas: o resultado final pronto. */
+  importedResults: ImportedResults | null;
 }
 
 export interface Match {
@@ -105,6 +107,7 @@ export interface EditionPatch {
   entriesDeadline?: string | null;
   prizesText?: string | null;
   manualStandingsOrder?: Record<string, string[]>;
+  importedResults?: ImportedResults | null;
 }
 
 export interface TeamPatch {
@@ -135,6 +138,8 @@ export interface Repo {
   replaceMatches(editionId: string, rows: MatchImportRow[]): Promise<void>;
 
   createEntry(input: NewEntryInput): Promise<Entry>;
+  /** Cria vários palpites de uma vez (importação). Devolve os ids na mesma ordem. */
+  createEntries(inputs: NewEntryInput[]): Promise<string[]>;
   updateEntry(entryId: string, patch: EntryPatch): Promise<void>;
   deleteEntry(entryId: string): Promise<void>;
 
@@ -149,6 +154,8 @@ export interface Repo {
   /** Define os times de cada nível; cria os times que ainda não existem. */
   setEditionTiers(editionId: string, tiers: { tier: number; teamNames: string[] }[]): Promise<void>;
   duplicateEdition(editionId: string, name: string, season: number): Promise<string>;
+  /** Cria uma edição vazia (sem times, jogos ou palpites). */
+  createEdition(input: { name: string; season: number; status: EditionStatus; rules: Rules }): Promise<string>;
   deleteEdition(editionId: string): Promise<void>;
 
   /** Altera os dados de um time (vale para todas as edições em que ele aparece). */

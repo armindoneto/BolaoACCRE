@@ -105,6 +105,12 @@ export const memoryRepo: Repo = {
     return clone(entry);
   },
 
+  async createEntries(inputs) {
+    const ids: string[] = [];
+    for (const input of inputs) ids.push((await memoryRepo.createEntry(input)).id);
+    return ids;
+  },
+
   async updateEntry(entryId, patch) {
     const { entry } = findEntry(entryId);
     if (patch.name !== undefined) entry.name = patch.name;
@@ -203,8 +209,34 @@ export const memoryRepo: Repo = {
         status: "draft",
         entriesDeadline: null,
         manualStandingsOrder: {},
+        importedResults: null,
       },
       teams: clone(source.teams),
+      matches: [],
+      entries: [],
+    });
+    return id;
+  },
+
+  async createEdition(input) {
+    const s = store();
+    const reference = [...s.bundles.values()][0]?.edition;
+    const id = randomUUID();
+    s.bundles.set(id, {
+      edition: {
+        id,
+        competitionName: reference?.competitionName ?? "Brasileirão Série A",
+        standingsCriteria: reference?.standingsCriteria ?? ["points", "wins", "goal_difference", "goals_for", "head_to_head"],
+        season: input.season,
+        name: input.name,
+        status: input.status,
+        rules: clone(input.rules),
+        entriesDeadline: null,
+        prizesText: null,
+        manualStandingsOrder: {},
+        importedResults: null,
+      },
+      teams: [],
       matches: [],
       entries: [],
     });
