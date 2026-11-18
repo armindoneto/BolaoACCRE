@@ -26,7 +26,8 @@ export function parseBrDate(text: string): string | null | undefined {
 }
 
 /**
- * Lê a tabela de jogos em CSV. Colunas (separadas por ; , ou tab):
+ * Lê a tabela de jogos em CSV. Colunas (separadas por ; , ou tab), em um dos formatos:
+ *   rodada; mandante; visitante; gols mandante; gols visitante
  *   rodada; data; mandante; visitante; gols mandante; gols visitante
  * Data e gols são opcionais. A primeira linha pode ser um cabeçalho.
  */
@@ -51,19 +52,23 @@ export function parseMatchesCsv(
       errors.push(`Linha ${n}: a rodada deve ser um número.`);
       return;
     }
-    if (cols.length < 4) {
-      errors.push(`Linha ${n}: faltam colunas (rodada; data; mandante; visitante).`);
+    // Dois formatos: com data (rodada; data; mandante; visitante) ou sem data
+    // (rodada; mandante; visitante). A data sempre começa com um número; um time, não.
+    const withDate = cols[1] === "" ? cols.length >= 4 : /^\d/.test(cols[1] ?? "");
+    const [dateText, homeText, awayText, hg, ag] = withDate
+      ? [cols[1], cols[2] ?? "", cols[3] ?? "", cols[4] ?? "", cols[5] ?? ""]
+      : ["", cols[1] ?? "", cols[2] ?? "", cols[3] ?? "", cols[4] ?? ""];
+    if (!homeText || !awayText) {
+      errors.push(`Linha ${n}: faltam colunas (rodada, mandante e visitante).`);
       return;
     }
-    const date = parseBrDate(cols[1]);
-    if (date === undefined) errors.push(`Linha ${n}: data inválida "${cols[1]}" (use dd/mm/aaaa hh:mm).`);
-    const home = index.get(normalizeName(cols[2]));
-    const away = index.get(normalizeName(cols[3]));
-    if (!home) errors.push(`Linha ${n}: time não encontrado "${cols[2]}".`);
-    if (!away) errors.push(`Linha ${n}: time não encontrado "${cols[3]}".`);
+    const date = parseBrDate(dateText);
+    if (date === undefined) errors.push(`Linha ${n}: data inválida "${dateText}" (use dd/mm/aaaa hh:mm).`);
+    const home = index.get(normalizeName(homeText));
+    const away = index.get(normalizeName(awayText));
+    if (!home) errors.push(`Linha ${n}: time não encontrado "${homeText}".`);
+    if (!away) errors.push(`Linha ${n}: time não encontrado "${awayText}".`);
     if (home && home === away) errors.push(`Linha ${n}: mandante e visitante são o mesmo time.`);
-    const hg = cols[4] ?? "";
-    const ag = cols[5] ?? "";
     let homeGoals: number | null = null;
     let awayGoals: number | null = null;
     if (hg !== "" || ag !== "") {

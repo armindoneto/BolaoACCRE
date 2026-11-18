@@ -36,4 +36,26 @@ describe("importação de jogos por CSV", () => {
       "Linha 3: placar incompleto ou inválido.",
     ]);
   });
+
+  it("aceita o formato sem data: rodada, mandante e visitante", () => {
+    const { rows, errors } = parseMatchesCsv(
+      ["1\tSão Paulo\tFlamengo", "1\tAtlético-MG\tsao paulo\t2\t1", "2\tFLA\tCAM\t\t", "3,Flamengo,São Paulo"].join("\n"),
+      teams,
+    );
+    expect(errors).toEqual([]);
+    expect(rows).toEqual([
+      { round: 1, date: null, homeTeamId: "sao", awayTeamId: "fla", homeGoals: null, awayGoals: null },
+      { round: 1, date: null, homeTeamId: "cam", awayTeamId: "sao", homeGoals: 2, awayGoals: 1 },
+      { round: 2, date: null, homeTeamId: "fla", awayTeamId: "cam", homeGoals: null, awayGoals: null },
+      { round: 3, date: null, homeTeamId: "fla", awayTeamId: "sao", homeGoals: null, awayGoals: null },
+    ]);
+  });
+
+  it("aponta linha sem visitante e data inválida", () => {
+    const { errors } = parseMatchesCsv("1\tFlamengo\n2;32/13/2026;Flamengo;São Paulo", teams);
+    expect(errors).toEqual([
+      "Linha 1: faltam colunas (rodada, mandante e visitante).",
+      'Linha 2: data inválida "32/13/2026" (use dd/mm/aaaa hh:mm).',
+    ]);
+  });
 });

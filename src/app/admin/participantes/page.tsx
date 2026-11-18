@@ -33,13 +33,7 @@ export default async function AdminParticipantesPage({ searchParams }: { searchP
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Participantes ({participants.length})</h1>
-        <p className="text-sm text-muted">
-          Só você cadastra participantes: basta o nome. Cada um ganha um perfil no site, que reúne os palpites de todas
-          as edições. Os palpites são atribuídos a eles na aba Palpites.
-        </p>
-      </div>
+      <h1 className="text-2xl font-extrabold tracking-tight">Participantes ({participants.length})</h1>
       <NewParticipantForm />
       {participants.length === 0 ? (
         <EmptyState title="Nenhum participante ainda" />

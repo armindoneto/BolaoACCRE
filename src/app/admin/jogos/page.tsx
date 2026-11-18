@@ -20,14 +20,21 @@ export default async function JogosPage({ searchParams }: { searchParams: Promis
       <section className="card max-w-3xl space-y-3 p-4">
         <h2 className="font-bold">Importar por CSV</h2>
         <div className="space-y-1 text-sm text-muted">
-          <p>Cole a tabela inteira da temporada, um jogo por linha:</p>
+          <p>
+            Cole a tabela inteira da temporada, um jogo por linha, com <strong>rodada, mandante e visitante</strong>{" "}
+            (copiado do Excel ou separado por ponto e vírgula):
+          </p>
           <pre className="overflow-x-auto rounded-xl bg-bg p-3 text-xs text-fg">
-            rodada;data;mandante;visitante;gols mandante;gols visitante{"\n"}
-            1;28/03/2026 16:00;Flamengo;Santos;2;0{"\n"}
-            1;28/03/2026 18:30;Remo;Bahia
+            1;Fluminense;Grêmio{"\n"}
+            1;São Paulo;Flamengo{"\n"}
+            2;Flamengo;Internacional
           </pre>
           <p>
-            Data e gols são opcionais. Os times podem ser escritos pelo nome ou pela sigla. A importação
+            Se quiser, inclua a data depois da rodada e o placar no fim:{" "}
+            <code className="text-fg">1;28/03/2026 16:00;Flamengo;Santos;2;0</code>.
+          </p>
+          <p>
+            Os times podem ser escritos pelo nome, nome curto ou sigla. A importação
             <strong> substitui a tabela inteira</strong>, mas mantém os resultados já lançados dos jogos que continuarem iguais.
           </p>
         </div>
