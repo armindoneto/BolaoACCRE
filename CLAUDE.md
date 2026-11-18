@@ -11,6 +11,7 @@ Idioma da interface: português (pt-BR). Os números usam vírgula decimal (ex.:
 ## Como o bolão funciona
 
 - Cada **edição** (bolão) está ligada a um campeonato e a uma temporada. Exemplo: Brasileirão 2026.
+- Os **times** formam um cadastro geral, mantido pelo administrador. Cada edição escolhe os seus times desse cadastro (as edições antigas e futuras têm times diferentes), e um time pode não estar em nenhuma edição.
 - Os times da edição são divididos em **níveis**. No formato atual são 10 níveis, com 2 times em cada um.
 - Um **palpite** é a escolha de 1 time por nível, com um nome próprio. Ele não muda até o fim do campeonato.
 - Um **participante** é uma pessoa cadastrada pelo administrador (só o nome). Um participante pode ter **mais de um palpite** (ex.: "Fulano 1", "Fulano 2").
@@ -146,9 +147,9 @@ O recálculo é feito **sempre que o admin salva um resultado**. Recalcular a ed
 ## Modelo de dados (Supabase)
 
 - `competitions`: id, nome (ex.: "Brasileirão Série A"), critérios de desempate da tabela
-- `teams`: id, nome, nome curto, sigla, cores, escudo (url; as imagens ficam no Supabase Storage)
+- `teams`: cadastro geral de times (independe das edições): id, nome, nome curto, sigla, cores, escudo (url; as imagens ficam no Supabase Storage). Nome e sigla não se repetem.
 - `editions`: id, competition_id, temporada, nome, status (`draft` | `open_for_entries` | `running` | `finished`), `rules` (jsonb), prazo de palpites, prêmios (texto livre), `imported_results` (jsonb; só em edições antigas importadas)
-- `edition_teams`: edition_id, team_id, tier (nível)
+- `edition_teams`: quais times do cadastro estão em cada edição, e em que nível: edition_id, team_id, tier
 - `matches`: id, edition_id, rodada, data, mandante_id, visitante_id, gols_mandante, gols_visitante (nulos até o resultado)
 - `participants`: id, nome de exibição, contato opcional (`user_id` existe, mas não é usado enquanto os participantes não têm conta)
 - `entries` (palpites): id, edition_id, `name` (nome do palpite), participant_id (nulo até o admin atribuir), `selection_key` (chave canônica para achar palpites repetidos), criado em
@@ -175,11 +176,11 @@ Públicas (sem login):
 
 Admin (`/admin`, exige login de admin):
 - **Lançar resultados**: lista de jogos por rodada com dois campos de placar em cada, salvando de uma vez e com o recálculo automático. Precisa ser rápido de usar no celular.
-- **Edições**: criar e editar edição, níveis e times, e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras. Botão para passar a edição ao próximo estado. **Importar bolão antigo**: cola os dados da planilha (níveis; lançamentos de pontos de cada time por etapa; palpites com participante, times e, opcionalmente, posição e pontos) e grava a edição direto no Histórico.
+- **Edições**: criar e editar edição, níveis (escolhendo os times do cadastro geral), e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras. Botão para passar a edição ao próximo estado. **Importar bolão antigo**: cola os dados da planilha (níveis, com os times reconhecidos no cadastro e os que faltarem cadastrados ao gravar; lançamentos de pontos de cada time por etapa; palpites com participante, times e, opcionalmente, posição e pontos) e grava a edição direto no Histórico.
 - **Jogos**: cadastrar a tabela da temporada (importação por CSV).
 - **Palpites**: revisar os palpites que chegam (ajustar o nome e atribuir a um participante), criar, editar ou excluir. Exportar a classificação em PDF ou imagem para mandar no WhatsApp.
 - **Participantes**: cadastrar (só o nome), renomear e excluir participantes.
-- **Times**: editar os dados de cada time e enviar o escudo.
+- **Times**: o cadastro geral de times. Cadastrar, editar, enviar o escudo e excluir (só quem não está em nenhuma edição). Mostra em quais edições cada time aparece.
 
 ---
 

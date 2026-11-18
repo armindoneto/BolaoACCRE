@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_STANDINGS_CRITERIA, selectionKey, type Rules } from "@/lib/scoring";
 import type { Edition, EditionBundle, EditionTeam, Entry, Match, Repo } from "./types";
-import { normalizeName, teamCodeFromName } from "./util";
+
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -299,27 +299,9 @@ export const supabaseRepo: Repo = {
   },
 
   async setEditionTiers(editionId, tiers) {
-    const all = check(await db().from("teams").select("id, name, short_name")) ?? [];
-    const rows: { edition_id: string; team_id: string; tier: number }[] = [];
-    for (const { tier, teamNames } of tiers) {
-      for (const name of teamNames) {
-        const key = normalizeName(name);
-        let team: any = all.find(
-          (t: any) => normalizeName(t.name) === key || normalizeName(t.short_name) === key,
-        );
-        if (!team) {
-          team = check(
-            await db()
-              .from("teams")
-              .insert({ name, short_name: name, code: teamCodeFromName(name) })
-              .select("id, name, short_name")
-              .single(),
-          );
-          all.push(team);
-        }
-        rows.push({ edition_id: editionId, team_id: team.id, tier });
-      }
-    }
+    const rows = tiers.flatMap(({ tier, teamIds }) =>
+      teamIds.map((teamId) => ({ edition_id: editionId, team_id: teamId, tier })),
+    );
     check(await db().from("edition_teams").delete().eq("edition_id", editionId));
     if (rows.length) check(await db().from("edition_teams").insert(rows));
   },
@@ -380,6 +362,54 @@ export const supabaseRepo: Repo = {
 
   async deleteEdition(editionId) {
     check(await db().from("editions").delete().eq("id", editionId));
+  },
+
+  async listTeams() {
+    const rows = check(await db().from("teams").select("*, edition_teams(edition_id, tier)").order("name")) ?? [];
+    return rows
+      .map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        shortName: row.short_name,
+        code: row.code,
+        crestUrl: row.crest_url,
+        color: row.color,
+        color2: row.color2,
+        editions: (row.edition_teams ?? []).map((et: any) => ({ editionId: et.edition_id, tier: et.tier })),
+      }))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, "pt-BR"));
+  },
+
+  async createTeam(input) {
+    const row = check(
+      await db()
+        .from("teams")
+        .insert({
+          name: input.name,
+          short_name: input.shortName,
+          code: input.code,
+          color: input.color,
+          color2: input.color2,
+        })
+        .select("*")
+        .single(),
+    );
+    return {
+      id: row.id,
+      name: row.name,
+      shortName: row.short_name,
+      code: row.code,
+      crestUrl: row.crest_url,
+      color: row.color,
+      color2: row.color2,
+    };
+  },
+
+  async deleteTeam(teamId) {
+    const used = check(await db().from("edition_teams").select("edition_id").eq("team_id", teamId).limit(1));
+    if (used?.length) throw new Error("Este time está em alguma edição.");
+    check(await db().from("teams").delete().eq("id", teamId));
+    await db().storage.from(CREST_BUCKET).remove([`${teamId}.png`]);
   },
 
   async updateTeam(teamId, patch) {

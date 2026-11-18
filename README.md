@@ -53,6 +53,10 @@ Quando uma atualização do site trouxer um arquivo novo em `supabase/migrations
 - `src/app/`: páginas públicas, `/palpite`, `/meu/[token]` e `/admin`.
 - `supabase/`: migration do schema e seed da edição 2026.
 
+## Times
+
+Em `/admin` → **Times** fica o cadastro geral de times, que vale para todas as edições: atuais, futuras e antigas. Ali você cadastra um time, envia o escudo e corrige nome, sigla e cores. Cada edição escolhe os seus times desse cadastro, nível por nível, na tela **Edições → Editar**. Um time que não está em nenhuma edição pode ser excluído.
+
 ## Ciclo de uma edição
 
 Em `/admin` → **Edições**, cada edição tem um botão para o próximo passo:
@@ -62,13 +66,13 @@ Em `/admin` → **Edições**, cada edição tem um botão para o próximo passo
 3. **Em andamento**: palpites travados; a classificação é a página inicial.
 4. **Encerrada**: sai da página inicial e vai para o Histórico, que mostra a classificação final de cada turno e os pontos de cada time.
 
-Para um novo bolão, use **Nova edição a partir de uma anterior** e ajuste regras e níveis.
+Para um novo bolão, use **Nova edição a partir de uma anterior** e ajuste as regras e os times de cada nível. Se mudar o número de níveis, ajuste também o desempate nas regras (`tier_points_sequence`); o site avisa ao salvar.
 
 ## Importar bolões antigos
 
 Em `/admin` → **Edições** → **Importar bolão antigo**. Copie as células da planilha e cole (o Excel separa as colunas por tabulação; ponto e vírgula também funciona). O botão **Conferir dados** aponta os problemas e mostra um resumo antes de gravar.
 
-**1. Níveis e times**, uma linha por nível:
+**1. Níveis e times**, uma linha por nível. Os times já cadastrados (aba **Times**) são reconhecidos pelo nome, nome curto ou sigla; os que faltarem são cadastrados ao gravar, e o resumo lista quais serão criados:
 
 ```
 1: Flamengo, Palmeiras

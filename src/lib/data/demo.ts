@@ -1,6 +1,6 @@
 import { RULES_2026, selectionKey } from "@/lib/scoring";
 import { TEAMS_2026 } from "./teams2026";
-import type { Edition, EditionBundle, EditionStatus, EditionTeam, Entry, Match } from "./types";
+import type { Edition, EditionBundle, EditionStatus, EditionTeam, Entry, Match, Team } from "./types";
 
 /** Gerador determinístico, para a demonstração ser sempre igual. */
 function mulberry32(seed: number) {
@@ -35,7 +35,7 @@ const NAMES = [
 /** Participantes fictícios: os mesmos nas duas edições de demonstração. */
 export const DEMO_PARTICIPANTS = NAMES.map((name, i) => ({ id: `p${i + 1}`, name }));
 
-export const DEMO_TEAMS: EditionTeam[] = TEAMS_2026.map((t) => ({
+const toTeam = (t: { name: string; shortName: string; code: string; color: string; color2: string }): Team => ({
   id: t.code.toLowerCase(),
   name: t.name,
   shortName: t.shortName,
@@ -43,8 +43,29 @@ export const DEMO_TEAMS: EditionTeam[] = TEAMS_2026.map((t) => ({
   crestUrl: null,
   color: t.color,
   color2: t.color2,
-  tier: t.tier,
-}));
+});
+
+/** Times que estavam na Série A de 2025 e não estão na edição 2026 (níveis 9 e 10 da demonstração). */
+const TEAMS_2025_ONLY = [
+  { tier: 9, name: "Ceará", shortName: "Ceará", code: "CEA", color: "#111111", color2: "#FFFFFF" },
+  { tier: 9, name: "Fortaleza", shortName: "Fortaleza", code: "FOR", color: "#0033A0", color2: "#D50032" },
+  { tier: 10, name: "Juventude", shortName: "Juventude", code: "JUV", color: "#00843D", color2: "#FFFFFF" },
+  { tier: 10, name: "Sport", shortName: "Sport", code: "SPT", color: "#D50032", color2: "#111111" },
+];
+
+/** Cadastro geral de times da demonstração: inclui times que não estão em nenhuma edição. */
+export const DEMO_TEAM_CATALOG: Team[] = [
+  ...TEAMS_2026,
+  ...TEAMS_2025_ONLY,
+  { name: "Goiás", shortName: "Goiás", code: "GOI", color: "#00843D", color2: "#FFFFFF" },
+  { name: "América Mineiro", shortName: "América-MG", code: "AME", color: "#00843D", color2: "#111111" },
+].map(toTeam);
+
+const editionTeams = (list: { tier: number; code: string }[]): EditionTeam[] =>
+  list.map((t) => ({ ...DEMO_TEAM_CATALOG.find((c) => c.code === t.code)!, tier: t.tier }));
+
+const TEAMS_OF_2026 = editionTeams(TEAMS_2026);
+const TEAMS_OF_2025 = editionTeams([...TEAMS_2026.filter((t) => t.tier <= 8), ...TEAMS_2025_ONLY]);
 
 interface DemoOptions {
   id: string;
@@ -56,11 +77,12 @@ interface DemoOptions {
   postponedRound: number | null;
   /** Quantos dos participantes fictícios palpitam nesta edição. */
   participants: number;
+  teams: EditionTeam[];
 }
 
 function buildDemoEdition(o: DemoOptions): EditionBundle {
   const rand = mulberry32(o.seed);
-  const teams = structuredClone(DEMO_TEAMS);
+  const teams = structuredClone(o.teams);
 
   // Turno e returno pelo método do círculo.
   const n = teams.length;
@@ -168,6 +190,7 @@ export function buildDemoBundles(): EditionBundle[] {
       playedRounds: 24,
       postponedRound: 17,
       participants: DEMO_PARTICIPANTS.length,
+      teams: TEAMS_OF_2026,
     }),
     buildDemoEdition({
       id: "demo-2025",
@@ -177,6 +200,7 @@ export function buildDemoBundles(): EditionBundle[] {
       playedRounds: 38,
       postponedRound: null,
       participants: 20,
+      teams: TEAMS_OF_2025,
     }),
   ];
 }

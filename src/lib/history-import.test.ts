@@ -177,4 +177,18 @@ describe("importação de bolão antigo", () => {
       "Palpites: na etapa 1º turno, só 1 de 2 palpites têm posição. Preencha todos ou nenhum.",
     ]);
   });
+
+  it("usa o nome do cadastro quando o nível traz nome curto ou sigla de um time conhecido", () => {
+    const result = run({
+      tiersText: "1: FLA, Palmeiras\n2: Cruzeiro, MIR",
+      aliases: { MIR: "Mirassol", FLA: "Flamengo" },
+    });
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    expect(result.data.tiers).toEqual([
+      { tier: 1, teamNames: ["Flamengo", "Palmeiras"] },
+      { tier: 2, teamNames: ["Cruzeiro", "Mirassol"] },
+    ]);
+    // e os pontos, escritos com o nome completo, continuam casando
+    expect(result.data.teamScores[0].get("Flamengo")!.tenths).toBe(45);
+  });
 });

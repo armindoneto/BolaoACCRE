@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { selectionKey } from "@/lib/scoring";
-import { buildDemoBundles, DEMO_PARTICIPANTS } from "./demo";
-import type { EditionBundle, Entry, EditionTeam, Repo } from "./types";
-import { normalizeName, teamCodeFromName } from "./util";
+import { buildDemoBundles, DEMO_PARTICIPANTS, DEMO_TEAM_CATALOG } from "./demo";
+import type { EditionBundle, Entry, Repo, Team } from "./types";
 
 /**
  * Repositório em memória, usado no MODO DEMONSTRAÇÃO (sem Supabase
@@ -16,18 +15,27 @@ interface StoredParticipant {
 interface Store {
   bundles: Map<string, EditionBundle>;
   participants: Map<string, StoredParticipant>;
+  /** Cadastro geral de times. As edições guardam só id e nível; os dados vêm daqui. */
+  teams: Map<string, Team>;
 }
 
-const g = globalThis as unknown as { __bolaoDemoStore3?: Store };
+const g = globalThis as unknown as { __bolaoDemoStore4?: Store };
 
 function store(): Store {
-  if (!g.__bolaoDemoStore3) {
-    g.__bolaoDemoStore3 = {
+  if (!g.__bolaoDemoStore4) {
+    g.__bolaoDemoStore4 = {
       bundles: new Map(buildDemoBundles().map((b) => [b.edition.id, b])),
       participants: new Map(DEMO_PARTICIPANTS.map((p) => [p.id, { ...p }])),
+      teams: new Map(DEMO_TEAM_CATALOG.map((t) => [t.id, { ...t }])),
     };
   }
-  return g.__bolaoDemoStore3;
+  return g.__bolaoDemoStore4;
+}
+
+function mustTeam(teamId: string): Team {
+  const team = store().teams.get(teamId);
+  if (!team) throw new Error("Time não encontrado");
+  return team;
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -50,13 +58,6 @@ function mustParticipant(id: string): StoredParticipant {
   return p;
 }
 
-/** O mesmo time aparece copiado em cada edição; devolve todas as cópias. */
-function teamCopies(teamId: string): EditionTeam[] {
-  const copies = [...store().bundles.values()].flatMap((b) => b.teams.filter((t) => t.id === teamId));
-  if (copies.length === 0) throw new Error("Time não encontrado");
-  return copies;
-}
-
 const ref = (p: StoredParticipant | undefined) => (p ? { id: p.id, name: p.name } : null);
 
 export const memoryRepo: Repo = {
@@ -68,7 +69,11 @@ export const memoryRepo: Repo = {
 
   async getBundle(editionId) {
     const bundle = store().bundles.get(editionId);
-    return bundle ? clone(bundle) : null;
+    if (!bundle) return null;
+    const copy = clone(bundle);
+    // Os dados de cada time (nome, escudo, cores) vêm sempre do cadastro geral.
+    copy.teams = copy.teams.map((t) => ({ ...clone(mustTeam(t.id)), tier: t.tier }));
+    return copy;
   },
 
   async saveResults(editionId, results) {
@@ -169,30 +174,9 @@ export const memoryRepo: Repo = {
   },
 
   async setEditionTiers(editionId, tiers) {
-    const s = store();
-    const bundle = s.bundles.get(editionId);
+    const bundle = store().bundles.get(editionId);
     if (!bundle) throw new Error("Edição não encontrada");
-    const known = [...s.bundles.values()].flatMap((b) => b.teams);
-    bundle.teams = tiers.flatMap(({ tier, teamNames }) =>
-      teamNames.map((name) => {
-        const key = normalizeName(name);
-        const found = known.find(
-          (t) => normalizeName(t.name) === key || normalizeName(t.shortName) === key,
-        );
-        return found
-          ? { ...found, tier }
-          : {
-              id: randomUUID(),
-              name,
-              shortName: name,
-              code: teamCodeFromName(name),
-              crestUrl: null,
-              color: "#334155",
-              color2: "#FFFFFF",
-              tier,
-            };
-      }),
-    );
+    bundle.teams = tiers.flatMap(({ tier, teamIds }) => teamIds.map((id) => ({ ...clone(mustTeam(id)), tier })));
   },
 
   async duplicateEdition(editionId, name, season) {
@@ -247,19 +231,46 @@ export const memoryRepo: Repo = {
     store().bundles.delete(editionId);
   },
 
+  async listTeams() {
+    const s = store();
+    return [...s.teams.values()]
+      .map((team) => ({
+        ...clone(team),
+        editions: [...s.bundles.values()].flatMap((b) => {
+          const found = b.teams.find((t) => t.id === team.id);
+          return found ? [{ editionId: b.edition.id, tier: found.tier }] : [];
+        }),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  },
+
+  async createTeam(input) {
+    const team: Team = { id: randomUUID(), crestUrl: null, ...input };
+    store().teams.set(team.id, team);
+    return clone(team);
+  },
+
+  async deleteTeam(teamId) {
+    mustTeam(teamId);
+    if ([...store().bundles.values()].some((b) => b.teams.some((t) => t.id === teamId))) {
+      throw new Error("Este time está em alguma edição.");
+    }
+    store().teams.delete(teamId);
+  },
+
   async updateTeam(teamId, patch) {
-    for (const team of teamCopies(teamId)) Object.assign(team, patch);
+    Object.assign(mustTeam(teamId), patch);
   },
 
   async setTeamCrest(teamId, png) {
     // Sem armazenamento de arquivos na demonstração: a imagem vai embutida no próprio endereço.
     const url = `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
-    for (const team of teamCopies(teamId)) team.crestUrl = url;
+    mustTeam(teamId).crestUrl = url;
     return url;
   },
 
   async removeTeamCrest(teamId) {
-    for (const team of teamCopies(teamId)) team.crestUrl = null;
+    mustTeam(teamId).crestUrl = null;
   },
 
   async isAdmin() {

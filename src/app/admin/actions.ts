@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { parseMatchesCsv } from "@/lib/csv";
 import { repo, type EditionStatus, type ResultInput } from "@/lib/data";
-import { normalizeName } from "@/lib/data/util";
+import { normalizeName, teamCodeFromName } from "@/lib/data/util";
+import { tiersOf } from "@/lib/view";
 import {
   cleanEntryName,
   hasDuplicate,
@@ -213,8 +214,8 @@ export interface EditionForm {
   deadline: string;
   prizesText: string;
   rulesJson: string;
-  /** Uma linha por nível: "1: Flamengo, Palmeiras". */
-  tiersText: string;
+  /** Times de cada nível, escolhidos do cadastro geral. */
+  tiers: { tier: number; teamIds: string[] }[];
   /** turno -> nomes dos times, um por linha (opcional). */
   manualOrder: Record<string, string>;
 }
@@ -246,30 +247,31 @@ export async function saveEdition(editionId: string, form: EditionForm): Promise
     deadline = iso;
   }
 
-  // Níveis
-  const tiers: { tier: number; teamNames: string[] }[] = [];
-  for (const line of form.tiersText.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    const m = /^\s*(\d+)\s*[:;-]\s*(.+)$/.exec(line);
-    if (!m) return { ok: false, error: `Linha de nível inválida: "${line.trim()}". Use "1: Time A, Time B".` };
-    const teamNames = m[2].split(",").map((t) => t.trim()).filter(Boolean);
-    if (teamNames.length < 2) return { ok: false, error: `O nível ${m[1]} precisa de pelo menos 2 times.` };
-    tiers.push({ tier: Number(m[1]), teamNames });
+  // Níveis (os times vêm do cadastro geral)
+  const catalog = new Set((await repo().listTeams()).map((t) => t.id));
+  const tiers = form.tiers.map((t) => ({ tier: t.tier, teamIds: t.teamIds.filter(Boolean) }));
+  for (const t of tiers) {
+    if (!Number.isInteger(t.tier) || t.tier < 1) return { ok: false, error: "Nível inválido." };
+    if (t.teamIds.length === 0) {
+      return { ok: false, error: `O nível ${t.tier} está vazio. Escolha os times ou remova o nível.` };
+    }
+    if (t.teamIds.length < 2) return { ok: false, error: `O nível ${t.tier} precisa de pelo menos 2 times.` };
+    if (t.teamIds.some((id) => !catalog.has(id))) return { ok: false, error: "Um dos times não existe mais. Atualize a página." };
   }
-  const allNames = tiers.flatMap((t) => t.teamNames.map(normalizeName));
-  if (new Set(allNames).size !== allNames.length) return { ok: false, error: "Há um time repetido nos níveis." };
+  const allIds = tiers.flatMap((t) => t.teamIds);
+  if (new Set(allIds).size !== allIds.length) return { ok: false, error: "Há um time repetido nos níveis." };
   if (new Set(tiers.map((t) => t.tier)).size !== tiers.length) return { ok: false, error: "Há um nível repetido." };
 
-  const currentTiers = new Map<number, string[]>();
-  for (const t of bundle.teams) currentTiers.set(t.tier, [...(currentTiers.get(t.tier) ?? []), normalizeName(t.name)]);
-  const known = new Map(bundle.teams.flatMap((t) => [[normalizeName(t.name), t], [normalizeName(t.shortName), t]] as const));
-  const tiersChanged =
-    tiers.length !== currentTiers.size ||
-    tiers.some(({ tier, teamNames }) => {
-      const now = (currentTiers.get(tier) ?? []).slice().sort();
-      const next = teamNames.map((n) => normalizeName(known.get(normalizeName(n))?.name ?? n)).sort();
-      return now.join("|") !== next.join("|");
-    });
+  const signature = (list: { tier: number; teamIds: string[] }[]) =>
+    list
+      .map((t) => `${t.tier}:${[...t.teamIds].sort().join(",")}`)
+      .sort()
+      .join("|");
+  const current = tiersOf(bundle).map((tier) => ({
+    tier,
+    teamIds: bundle.teams.filter((t) => t.tier === tier).map((t) => t.id),
+  }));
+  const tiersChanged = signature(tiers) !== signature(current);
   if (tiersChanged && (bundle.entries.length > 0 || bundle.matches.length > 0)) {
     return {
       ok: false,
@@ -306,6 +308,17 @@ export async function saveEdition(editionId: string, form: EditionForm): Promise
   await repo().updateEdition(editionId, { manualStandingsOrder });
 
   refresh();
+  // O desempate por nível precisa citar os níveis que a edição tem de verdade.
+  const tierNumbers = tiers.map((t) => t.tier).sort((a, b) => a - b);
+  const sequence = parsed.rules.tiebreakers.find((tb) => tb.type === "tier_points_sequence");
+  const covered = sequence && sequence.type === "tier_points_sequence" ? sequence.tiers : [];
+  const missing = tierNumbers.filter((n) => !covered.includes(n));
+  if (sequence && missing.length > 0) {
+    return {
+      ok: true,
+      message: `Edição salva. Atenção: o desempate nas regras não inclui ${missing.length === 1 ? "o nível" : "os níveis"} ${missing.join(", ")}. Ajuste "tier_points_sequence" no JSON das regras.`,
+    };
+  }
   return { ok: true, message: "Edição salva." };
 }
 
@@ -366,6 +379,7 @@ export type HistoryImportResult =
         entries: number;
         participants: string[];
         newParticipants: string[];
+        newTeams: string[];
         warnings: string[];
         periods: { name: string; top: string[]; last: string[]; usesPositions: boolean }[];
       };
@@ -386,15 +400,14 @@ export async function importHistoricEdition(form: HistoryImportForm, save: boole
     errors.push(`Já existe uma edição chamada "${name}".`);
   }
 
-  // Apelidos dos times já cadastrados (nome curto e sigla), para a planilha poder usar qualquer um.
+  // Times do cadastro geral, pelo nome, nome curto ou sigla: a planilha pode usar qualquer um.
+  const catalog = await repo().listTeams();
   const aliases: Record<string, string> = {};
-  for (const edition of editions) {
-    const bundle = await repo().getBundle(edition.id);
-    for (const team of bundle?.teams ?? []) {
-      aliases[team.shortName] = team.name;
-      aliases[team.code] = team.name;
-    }
+  for (const team of catalog) {
+    aliases[team.shortName] = team.name;
+    aliases[team.code] = team.name;
   }
+  const catalogByName = new Map(catalog.map((t) => [normalizeName(t.name), t]));
   const parsed = parseHistory({
     periodNames: form.periods.split(","),
     tiersText: form.tiersText,
@@ -439,6 +452,7 @@ export async function importHistoricEdition(form: HistoryImportForm, save: boole
     entries: data.entries.length,
     participants: participantNames,
     newParticipants: participantNames.filter((n) => !knownByName.has(normalizeName(n))),
+    newTeams: data.tiers.flatMap((t) => t.teamNames).filter((n) => !catalogByName.has(normalizeName(n))),
     warnings: data.warnings,
     periods: preview.periods.map((period, p) => {
       const lastPosition = Math.max(...period.ranking.map((r) => r.position));
@@ -455,9 +469,31 @@ export async function importHistoricEdition(form: HistoryImportForm, save: boole
 
   const editionId = await repo().createEdition({ name, season: form.season, status: "finished", rules });
   try {
-    await repo().setEditionTiers(editionId, data.tiers);
-    const bundle = await mustGetBundle(editionId);
-    const teamId = new Map(bundle.teams.map((t) => [normalizeName(t.name), t.id]));
+    // Times: usa os do cadastro e cadastra os que faltam.
+    const teamId = new Map<string, string>();
+    const codes = new Set(catalog.map((t) => t.code));
+    for (const teamName of data.tiers.flatMap((t) => t.teamNames)) {
+      const key = normalizeName(teamName);
+      const existing = catalogByName.get(key);
+      if (existing) {
+        teamId.set(key, existing.id);
+        continue;
+      }
+      const code = freeTeamCode(teamName, codes);
+      codes.add(code);
+      const created = await repo().createTeam({
+        name: teamName,
+        shortName: teamName.length <= 24 ? teamName : teamName.slice(0, 24),
+        code,
+        color: "#334155",
+        color2: "#FFFFFF",
+      });
+      teamId.set(key, created.id);
+    }
+    await repo().setEditionTiers(
+      editionId,
+      data.tiers.map((t) => ({ tier: t.tier, teamIds: t.teamNames.map((n) => teamId.get(normalizeName(n))!) })),
+    );
     const idOf = (teamName: string) => {
       const id = teamId.get(normalizeName(teamName));
       if (!id) throw new Error(`Time não encontrado depois de gravar: ${teamName}`);
@@ -510,24 +546,62 @@ export interface TeamForm {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
-export async function adminUpdateTeam(teamId: string, form: TeamForm): Promise<ActionResult> {
-  await requireAdmin();
+/** Sigla livre no cadastro: a gerada pelo nome ou, se já existir, com um número no fim. */
+function freeTeamCode(name: string, taken: Set<string>): string {
+  const base = teamCodeFromName(name).slice(0, 3);
+  if (!taken.has(base)) return base;
+  for (let n = 2; n <= 9; n++) if (!taken.has(`${base}${n}`)) return `${base}${n}`;
+  return base;
+}
+
+/** Confere os dados de um time contra o cadastro (nome e sigla não podem se repetir). */
+async function cleanTeam(form: TeamForm, ignoreId?: string): Promise<{ team: TeamForm } | { error: string }> {
   const name = form.name.trim().replace(/\s+/g, " ");
   const shortName = form.shortName.trim().replace(/\s+/g, " ") || name;
   const code = form.code.trim().toUpperCase();
-  if (name.length < 2 || name.length > 60) return { ok: false, error: "Escreva o nome do time." };
-  if (shortName.length > 24) return { ok: false, error: "O nome curto pode ter até 24 letras." };
-  if (!/^[A-Z0-9]{2,4}$/.test(code)) return { ok: false, error: "A sigla deve ter de 2 a 4 letras." };
-  if (!HEX.test(form.color) || !HEX.test(form.color2)) return { ok: false, error: "Cor inválida." };
+  if (name.length < 2 || name.length > 60) return { error: "Escreva o nome do time." };
+  if (shortName.length > 24) return { error: "O nome curto pode ter até 24 letras." };
+  if (!/^[A-Z0-9]{2,4}$/.test(code)) return { error: "A sigla deve ter de 2 a 4 letras." };
+  if (!HEX.test(form.color) || !HEX.test(form.color2)) return { error: "Cor inválida." };
+  const others = (await repo().listTeams()).filter((t) => t.id !== ignoreId);
+  const sameName = others.find((t) => normalizeName(t.name) === normalizeName(name));
+  if (sameName) return { error: `Já existe um time chamado "${sameName.name}".` };
+  const sameCode = others.find((t) => t.code === code);
+  if (sameCode) return { error: `A sigla ${code} já é do ${sameCode.name}.` };
+  return { team: { name, shortName, code, color: form.color, color2: form.color2 } };
+}
+
+export async function adminCreateTeam(form: TeamForm): Promise<ActionResult> {
+  await requireAdmin();
+  const clean = await cleanTeam(form);
+  if ("error" in clean) return { ok: false, error: clean.error };
+  await repo().createTeam(clean.team);
+  refresh();
+  return { ok: true, message: `${clean.team.name} cadastrado.` };
+}
+
+export async function adminUpdateTeam(teamId: string, form: TeamForm): Promise<ActionResult> {
+  await requireAdmin();
+  const clean = await cleanTeam(form, teamId);
+  if ("error" in clean) return { ok: false, error: clean.error };
   try {
-    await repo().updateTeam(teamId, { name, shortName, code, color: form.color, color2: form.color2 });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "";
-    if (/duplicate|unique/i.test(message)) return { ok: false, error: "Já existe outro time com esse nome." };
+    await repo().updateTeam(teamId, clean.team);
+  } catch {
     return { ok: false, error: "Não foi possível salvar o time." };
   }
   refresh();
   return { ok: true, message: "Time salvo." };
+}
+
+export async function adminDeleteTeam(teamId: string): Promise<ActionResult> {
+  await requireAdmin();
+  try {
+    await repo().deleteTeam(teamId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Não foi possível excluir." };
+  }
+  refresh();
+  return { ok: true, message: "Time excluído." };
 }
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];

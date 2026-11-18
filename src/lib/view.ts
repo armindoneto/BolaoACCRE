@@ -1,6 +1,6 @@
 import { formatPoints, type PeriodResult, type PrizePosition } from "@/lib/scoring";
 import type { BadgeTeam } from "@/components/team-badge";
-import type { EditionBundle, EditionTeam } from "@/lib/data";
+import type { EditionBundle, EditionTeam, Team } from "@/lib/data";
 
 /** Linha da classificação pronta para exibir (serializável para componentes de cliente). */
 export interface RankingViewRow {
@@ -25,7 +25,7 @@ export function tiersOf(bundle: EditionBundle): number[] {
   return [...new Set(bundle.teams.map((t) => t.tier))].sort((a, b) => a - b);
 }
 
-export function toBadge(team: EditionTeam): BadgeTeam {
+export function toBadge(team: Team): BadgeTeam {
   return { name: team.name, code: team.code, crestUrl: team.crestUrl, color: team.color, color2: team.color2 };
 }
 

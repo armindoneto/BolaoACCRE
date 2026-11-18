@@ -24,6 +24,11 @@ export interface EditionTeam extends Team {
   tier: number;
 }
 
+/** Time do cadastro geral, com as edições em que ele aparece (pode não estar em nenhuma). */
+export interface CatalogTeam extends Team {
+  editions: { editionId: string; tier: number }[];
+}
+
 export interface Edition {
   id: string;
   competitionName: string;
@@ -151,13 +156,18 @@ export interface Repo {
   deleteParticipant(participantId: string): Promise<void>;
 
   updateEdition(editionId: string, patch: EditionPatch): Promise<void>;
-  /** Define os times de cada nível; cria os times que ainda não existem. */
-  setEditionTiers(editionId: string, tiers: { tier: number; teamNames: string[] }[]): Promise<void>;
+  /** Define os times de cada nível da edição, escolhidos do cadastro geral de times. */
+  setEditionTiers(editionId: string, tiers: { tier: number; teamIds: string[] }[]): Promise<void>;
   duplicateEdition(editionId: string, name: string, season: number): Promise<string>;
   /** Cria uma edição vazia (sem times, jogos ou palpites). */
   createEdition(input: { name: string; season: number; status: EditionStatus; rules: Rules }): Promise<string>;
   deleteEdition(editionId: string): Promise<void>;
 
+  /** Cadastro geral de times, em ordem alfabética. */
+  listTeams(): Promise<CatalogTeam[]>;
+  createTeam(input: TeamPatch): Promise<Team>;
+  /** Só apaga times que não estão em nenhuma edição. */
+  deleteTeam(teamId: string): Promise<void>;
   /** Altera os dados de um time (vale para todas as edições em que ele aparece). */
   updateTeam(teamId: string, patch: TeamPatch): Promise<void>;
   /** Guarda a imagem do escudo (PNG) e devolve o endereço público dela. */
