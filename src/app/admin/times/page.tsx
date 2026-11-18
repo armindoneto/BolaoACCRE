@@ -5,18 +5,10 @@ import { TeamCatalog } from "./team-catalog";
 export default async function AdminTimesPage() {
   const [teams, editions] = await Promise.all([repo().listTeams(), listEditions()]);
   const editionName = new Map(editions.map((e) => [e.id, e]));
-  const withCrest = teams.filter((t) => t.crestUrl).length;
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Times</h1>
-        <p className="text-sm text-muted">
-          Cadastro geral de times, usado por todas as edições: atuais, futuras e antigas. Os times de cada edição são
-          escolhidos daqui, na aba Edições. {withCrest} de {teams.length} times têm escudo; sem imagem, o site mostra um
-          escudo desenhado com a sigla e as cores.
-        </p>
-      </div>
+      <h1 className="text-2xl font-extrabold tracking-tight">Times</h1>
       <TeamCatalog
         editions={[...editions]
           .sort((a, b) => b.season - a.season || a.name.localeCompare(b.name))

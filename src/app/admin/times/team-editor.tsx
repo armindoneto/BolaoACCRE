@@ -106,7 +106,7 @@ export function TeamEditor({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{team.name}</span>
           <span className="block truncate text-xs text-muted">
-            {team.code} · {team.crestUrl ? "com escudo" : "sem escudo"} ·{" "}
+            {team.code} ·{" "}
             {editions.length === 0
               ? "em nenhuma edição"
               : editions.length === 1
