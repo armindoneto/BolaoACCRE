@@ -1,14 +1,9 @@
 import { listEditions, repo } from "@/lib/data";
-import { adminBundle } from "../shared";
 import { TeamCatalog } from "./team-catalog";
 
 /** Cadastro geral de times: cada time pode estar em várias edições, ou em nenhuma. */
-export default async function AdminTimesPage({ searchParams }: { searchParams: Promise<{ edicao?: string }> }) {
-  const [teams, editions, bundle] = await Promise.all([
-    repo().listTeams(),
-    listEditions(),
-    adminBundle((await searchParams).edicao),
-  ]);
+export default async function AdminTimesPage() {
+  const [teams, editions] = await Promise.all([repo().listTeams(), listEditions()]);
   const editionName = new Map(editions.map((e) => [e.id, e]));
   const withCrest = teams.filter((t) => t.crestUrl).length;
 
@@ -23,7 +18,9 @@ export default async function AdminTimesPage({ searchParams }: { searchParams: P
         </p>
       </div>
       <TeamCatalog
-        edition={bundle ? { id: bundle.edition.id, name: bundle.edition.name } : null}
+        editions={[...editions]
+          .sort((a, b) => b.season - a.season || a.name.localeCompare(b.name))
+          .map((e) => ({ id: e.id, name: e.name }))}
         teams={teams.map((t) => ({
           id: t.id,
           name: t.name,

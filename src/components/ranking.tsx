@@ -9,7 +9,7 @@ import { prizeStyle } from "@/lib/prize-style";
 import { TeamBadge } from "./team-badge";
 
 function normalize(text: string) {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
 export function RankingRow({ row, showPicks }: { row: RankingViewRow; showPicks: boolean }) {

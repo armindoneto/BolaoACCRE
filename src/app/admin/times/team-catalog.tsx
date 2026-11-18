@@ -1,11 +1,11 @@
 "use client";
 
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { TeamBadge } from "@/components/team-badge";
-import { cn } from "@/lib/cn";
 import { adminCreateTeam, type ActionResult, type TeamForm } from "../actions";
+import { ListFilter, normalizeSearch, type EditionOption } from "../list-filter";
 import { TeamEditor } from "./team-editor";
 
 export interface CatalogItem extends TeamForm {
@@ -14,10 +14,8 @@ export interface CatalogItem extends TeamForm {
   editions: { editionId: string; name: string; tier: number }[];
 }
 
-const normalize = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
 /** Gera a sigla a partir do nome enquanto a pessoa não escreve uma. */
-const suggestCode = (name: string) => normalize(name).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase();
+const suggestCode = (name: string) => normalizeSearch(name).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase();
 
 function NewTeamForm() {
   const router = useRouter();
@@ -109,60 +107,38 @@ function NewTeamForm() {
   );
 }
 
-type Filter = "all" | "edition" | "none";
-
 /** Cadastro geral de times: busca, filtro por edição, cadastro e edição de cada time. */
 export function TeamCatalog({
   teams,
-  edition,
+  editions,
 }: {
   teams: CatalogItem[];
-  /** Edição em que o admin está trabalhando, para o filtro. */
-  edition: { id: string; name: string } | null;
+  /** Todas as edições, da mais recente para a mais antiga. */
+  editions: EditionOption[];
 }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  // Abre com todos: um time recém-cadastrado ainda não está em nenhuma edição.
+  const [editionId, setEditionId] = useState("");
   const shown = useMemo(() => {
-    const q = normalize(query.trim());
+    const q = normalizeSearch(query.trim());
     return teams.filter((t) => {
-      if (filter === "edition" && !t.editions.some((e) => e.editionId === edition?.id)) return false;
-      if (filter === "none" && t.editions.length > 0) return false;
-      return !q || normalize(`${t.name} ${t.shortName} ${t.code}`).includes(q);
+      if (editionId && !t.editions.some((e) => e.editionId === editionId)) return false;
+      return !q || normalizeSearch(`${t.name} ${t.shortName} ${t.code}`).includes(q);
     });
-  }, [teams, query, filter, edition]);
-  const filters: { key: Filter; label: string }[] = [
-    { key: "all", label: `Todos (${teams.length})` },
-    ...(edition
-      ? [{ key: "edition" as const, label: `${edition.name} (${teams.filter((t) => t.editions.some((e) => e.editionId === edition.id)).length})` }]
-      : []),
-    { key: "none", label: `Em nenhuma edição (${teams.filter((t) => t.editions.length === 0).length})` },
-  ];
+  }, [teams, query, editionId]);
 
   return (
     <div className="space-y-3">
       <NewTeamForm />
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative block w-full sm:w-72">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar time" className="input pl-9" />
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {filters.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key)}
-              aria-pressed={filter === f.key}
-              className={cn(
-                "chip cursor-pointer border px-3 py-1.5 text-sm",
-                filter === f.key ? "border-primary bg-primary text-primary-fg" : "border-border bg-card text-fg",
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ListFilter
+        query={query}
+        onQuery={setQuery}
+        editionId={editionId}
+        onEdition={setEditionId}
+        editions={editions}
+        placeholder="Buscar time"
+        count={shown.length}
+      />
       {shown.length === 0 ? (
         <p className="card p-6 text-center text-sm text-muted">Nenhum time encontrado.</p>
       ) : (

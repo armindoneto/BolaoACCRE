@@ -179,8 +179,8 @@ Admin (`/admin`, exige login de admin):
 - **Edições**: criar e editar edição, níveis (escolhendo os times do cadastro geral), e as regras (editor de JSON com validação e pré-visualização em texto). Ação "duplicar edição anterior" para reaproveitar regras. Botão para passar a edição ao próximo estado. **Importar bolão antigo**: cola os dados da planilha (níveis, com os times reconhecidos no cadastro e os que faltarem cadastrados ao gravar; lançamentos de pontos de cada time por etapa; palpites com participante, times e, opcionalmente, posição e pontos) e grava a edição direto no Histórico.
 - **Jogos**: cadastrar a tabela da temporada (importação por CSV).
 - **Palpites**: revisar os palpites que chegam (ajustar o nome e atribuir a um participante), criar, editar ou excluir. Exportar a classificação em PDF ou imagem para mandar no WhatsApp.
-- **Participantes**: cadastrar (só o nome), renomear e excluir participantes.
-- **Times**: o cadastro geral de times. Cadastrar, editar, enviar o escudo e excluir (só quem não está em nenhuma edição). Mostra em quais edições cada time aparece.
+- **Participantes**: cadastrar (só o nome), renomear e excluir participantes. Lista com busca (pelo nome da pessoa ou de um palpite) e filtro por edição.
+- **Times**: o cadastro geral de times. Cadastrar, editar, enviar o escudo e excluir (só quem não está em nenhuma edição). Mostra em quais edições cada time aparece. Lista com busca e filtro por edição.
 
 ---
 
