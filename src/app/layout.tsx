@@ -48,7 +48,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           )}
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-24 sm:pb-10 lg:px-6 lg:pt-6">{children}</main>
           <footer className="no-print mx-auto hidden w-full max-w-6xl gap-4 px-4 pb-6 text-xs text-muted sm:flex lg:px-6">
-            <Link href="/regras" className="hover:text-fg">Regras</Link>
             <Link href="/admin" className="hover:text-fg">Administração</Link>
           </footer>
           <BottomNav entriesOpen={open} />

@@ -28,16 +28,16 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
   return (
     <div className="space-y-4">
       <EditionHeader edition={edition} title={`Palpites (${entries.length})`} />
-      <div className="grid grid-cols-2 gap-2 sm:max-w-md">
-        <Link href={`/admin/palpites/novo?edicao=${edition.id}`} className="btn-primary min-h-12">
-          <Plus className="size-4" /> Novo palpite
-        </Link>
-        <Link href={`/admin/exportar?edicao=${edition.id}`} className="btn-outline min-h-12">
-          <FileDown className="size-4" /> Exportar em PDF
+      <div className="grid grid-cols-3 gap-2 sm:max-w-2xl">
+        <Link href={`/admin/palpites/novo?edicao=${edition.id}`} className="btn-primary min-h-12 px-2">
+          <Plus className="size-4 shrink-0" /> Novo palpite
         </Link>
         {/* Ferramenta de uso único: apagar junto com a pasta palpites/importar. */}
-        <Link href={`/admin/palpites/importar?edicao=${edition.id}`} className="btn-outline col-span-2 min-h-12">
-          <FileUp className="size-4" /> Importar palpites
+        <Link href={`/admin/palpites/importar?edicao=${edition.id}`} className="btn-outline min-h-12 px-2">
+          <FileUp className="size-4 shrink-0" /> Importar palpites
+        </Link>
+        <Link href={`/admin/exportar?edicao=${edition.id}`} className="btn-outline min-h-12 px-2">
+          <FileDown className="size-4 shrink-0" /> Exportar em PDF
         </Link>
       </div>
 

@@ -202,7 +202,7 @@ Muitos participantes são leigos digitalmente. **Nenhuma ação pública exige c
 ## Diretrizes de interface
 
 - **Mobile-first.** A maioria acessa pelo celular, a partir de um link no WhatsApp.
-- Navegação simples com 5 abas: Classificação · Participantes · Times · Campeonato · Histórico.
+- Navegação simples com 5 abas: Classificação · Participantes · Times · Campeonato · Histórico. No computador, o menu do topo também tem **Regras**, entre Campeonato e Histórico (no celular, a barra de baixo fica com as 5 abas).
 - No desktop, o layout usa a largura da tela (colunas e grades); no celular, uma coluna só.
 - Textos curtos e botões grandes. Nada de jargão técnico.
 - Escudos dos times sempre que aparecer um time.
