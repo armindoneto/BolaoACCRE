@@ -1,4 +1,4 @@
-import { FileDown, Plus } from "lucide-react";
+import { FileDown, FileUp, Plus } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/page-title";
 import { repo } from "@/lib/data";
@@ -33,6 +33,10 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
         </Link>
         <Link href={`/admin/exportar?edicao=${edition.id}`} className="btn-outline min-h-12">
           <FileDown className="size-4" /> Exportar em PDF
+        </Link>
+        {/* Ferramenta de uso único: apagar junto com a pasta palpites/importar. */}
+        <Link href={`/admin/palpites/importar?edicao=${edition.id}`} className="btn-outline col-span-2 min-h-12">
+          <FileUp className="size-4" /> Importar palpites
         </Link>
       </div>
 
