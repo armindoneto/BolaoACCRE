@@ -92,7 +92,7 @@ export function parseHistory(input: {
   /** Lançamentos de cada time, com linhas de etapa e de time (veja o topo do arquivo). */
   pointsText: string;
   entriesText: string;
-  /** Apelidos conhecidos de times (nome curto, sigla) -> nome completo. */
+  /** Times já cadastrados: apelido (nome curto, sigla) -> nome do cadastro. */
   aliases?: Record<string, string>;
 }): { ok: true; data: ParsedHistory } | { ok: false; errors: string[] } {
   const errors: string[] = [];
@@ -102,6 +102,12 @@ export function parseHistory(input: {
   if (new Set(periods.map(normalizeName)).size !== periods.length) errors.push("Há etapas com o mesmo nome.");
 
   // ---------- níveis ----------
+  // Time já cadastrado, escrito pelo nome curto ou pela sigla, passa a usar o nome do cadastro.
+  const canonicalOf = new Map<string, string>();
+  for (const [alias, full] of Object.entries(input.aliases ?? {})) {
+    canonicalOf.set(normalizeName(alias), full);
+    canonicalOf.set(normalizeName(full), full);
+  }
   const tierOfTeam = new Map<string, number>(); // nome normalizado -> nível
   const displayName = new Map<string, string>();
   input.tiersText.split(/\r?\n/).forEach((line, i) => {
@@ -113,8 +119,9 @@ export function parseHistory(input: {
     }
     const tier = Number(m[1]);
     for (const raw of m[2].split(/[,;\t]/)) {
-      const name = raw.trim().replace(/\s+/g, " ");
-      if (!name) continue;
+      const written = raw.trim().replace(/\s+/g, " ");
+      if (!written) continue;
+      const name = canonicalOf.get(normalizeName(written)) ?? written;
       const key = normalizeName(name);
       if (tierOfTeam.has(key)) errors.push(`Níveis, linha ${i + 1}: ${name} aparece mais de uma vez.`);
       else {

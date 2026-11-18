@@ -85,13 +85,17 @@ export function NewParticipantForm() {
 export function ParticipantCard({
   participant,
   editionId,
-  entryNames,
+  subtitle,
+  editions,
   trophies,
 }: {
   participant: Participant;
+  /** Edição em que o admin está trabalhando (para o botão "Novo palpite"). */
   editionId: string;
-  /** Nomes dos palpites desta pessoa na edição em que o admin está trabalhando. */
-  entryNames: string[];
+  /** Linha embaixo do nome: os palpites na edição filtrada, ou um resumo. */
+  subtitle: string;
+  /** Edições em que a pessoa tem palpite, com os nomes dos palpites. */
+  editions: { name: string; entryNames: string[] }[];
   trophies: Trophies;
 }) {
   const [name, setName] = useState(participant.name);
@@ -103,7 +107,7 @@ export function ParticipantCard({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{participant.name}</span>
           <span className="block truncate text-xs text-muted">
-            {entryNames.length > 0 ? entryNames.join(" · ") : "sem palpite nesta edição"}
+            {subtitle}
           </span>
         </span>
         <TrophyRow trophies={trophies} size={24} hideEmpty className="gap-1" />
@@ -111,10 +115,18 @@ export function ParticipantCard({
       </summary>
 
       <div className="space-y-3 border-t border-border p-3">
-        <p className="text-xs text-muted">
-          {participant.entryCount} {participant.entryCount === 1 ? "palpite" : "palpites"} no total, somando todas as
-          edições.
-        </p>
+        {editions.length > 0 ? (
+          <ul className="space-y-1 text-sm">
+            {editions.map((e) => (
+              <li key={e.name}>
+                <span className="font-semibold">{e.name}:</span>{" "}
+                <span className="text-muted">{e.entryNames.join(" · ")}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted">Ainda sem palpites.</p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <Link href={`/admin/palpites/novo?edicao=${editionId}&participante=${participant.id}`} className="btn-primary">
             <Plus className="size-4" /> Novo palpite

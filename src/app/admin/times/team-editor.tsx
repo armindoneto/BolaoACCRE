@@ -4,7 +4,14 @@ import { ImageUp, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { TeamBadge } from "@/components/team-badge";
-import { adminRemoveCrest, adminUpdateTeam, adminUploadCrest, type ActionResult, type TeamForm } from "../actions";
+import {
+  adminDeleteTeam,
+  adminRemoveCrest,
+  adminUpdateTeam,
+  adminUploadCrest,
+  type ActionResult,
+  type TeamForm,
+} from "../actions";
 
 const SIZE = 256;
 
@@ -38,7 +45,14 @@ async function toSmallPng(file: File): Promise<Blob> {
   }
 }
 
-export function TeamEditor({ team }: { team: TeamForm & { id: string; crestUrl: string | null } }) {
+export function TeamEditor({
+  team,
+  editions,
+}: {
+  team: TeamForm & { id: string; crestUrl: string | null };
+  /** Edições em que o time aparece (com o nível). Sem nenhuma, o time pode ser excluído. */
+  editions: { name: string; tier: number }[];
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<TeamForm>({
@@ -91,14 +105,28 @@ export function TeamEditor({ team }: { team: TeamForm & { id: string; crestUrl: 
         <TeamBadge team={{ ...form, crestUrl: team.crestUrl }} size={40} />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{team.name}</span>
-          <span className="text-xs text-muted">
-            {team.code} · {team.crestUrl ? "com escudo" : "sem escudo (desenhado)"}
+          <span className="block truncate text-xs text-muted">
+            {team.code} · {team.crestUrl ? "com escudo" : "sem escudo"} ·{" "}
+            {editions.length === 0
+              ? "em nenhuma edição"
+              : editions.length === 1
+                ? editions[0].name
+                : `${editions.length} edições`}
           </span>
         </span>
         <span className="text-sm font-semibold text-primary group-open:hidden">Editar</span>
       </summary>
 
       <div className="space-y-3 border-t border-border p-3">
+        {editions.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5">
+            {editions.map((e) => (
+              <li key={e.name} className="chip bg-border/60 text-fg">
+                {e.name} <span className="font-normal text-muted">· nível {e.tier}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <input
             ref={fileRef}
@@ -165,6 +193,19 @@ export function TeamEditor({ team }: { team: TeamForm & { id: string; crestUrl: 
             {pending ? "Aguarde…" : "Salvar dados do time"}
           </button>
         </form>
+
+        {editions.length === 0 && (
+          <button
+            type="button"
+            className="btn-danger w-full"
+            disabled={pending}
+            onClick={() => {
+              if (window.confirm(`Excluir ${team.name} do cadastro de times?`)) run(() => adminDeleteTeam(team.id));
+            }}
+          >
+            Excluir time (não está em nenhuma edição)
+          </button>
+        )}
 
         {feedback && (
           <p

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ConfirmButton } from "@/components/confirm-button";
-import { getBundle } from "@/lib/data";
-import { tiersOf } from "@/lib/view";
+import { getBundle, repo } from "@/lib/data";
+import { tiersOf, toBadge } from "@/lib/view";
 import { deleteEdition } from "../../actions";
 import { EditionForm } from "./edition-form";
 
@@ -32,6 +32,7 @@ export default async function EditarEdicaoPage({ params }: { params: Promise<{ i
         editionId={edition.id}
         locked={bundle.entries.length > 0 || bundle.matches.length > 0}
         periods={edition.rules.periods.map((p) => ({ id: p.id, name: p.name }))}
+        catalog={(await repo().listTeams()).map((t) => ({ ...toBadge(t), id: t.id, shortName: t.shortName }))}
         initial={{
           name: edition.name,
           season: edition.season,
@@ -39,9 +40,10 @@ export default async function EditarEdicaoPage({ params }: { params: Promise<{ i
           deadline: toLocalInput(edition.entriesDeadline),
           prizesText: edition.prizesText ?? "",
           rulesJson: JSON.stringify(edition.rules, null, 2),
-          tiersText: tiersOf(bundle)
-            .map((tier) => `${tier}: ${bundle.teams.filter((t) => t.tier === tier).map((t) => t.name).join(", ")}`)
-            .join("\n"),
+          tiers: tiersOf(bundle).map((tier) => ({
+            tier,
+            teamIds: bundle.teams.filter((t) => t.tier === tier).map((t) => t.id),
+          })),
           manualOrder: Object.fromEntries(
             edition.rules.periods.map((p) => [
               p.id,

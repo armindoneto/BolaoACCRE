@@ -1,49 +1,41 @@
-import { EmptyState } from "@/components/page-title";
-import { tiersOf } from "@/lib/view";
-import { EditionHeader } from "../edition-header";
-import { adminBundle } from "../shared";
-import { TeamEditor } from "./team-editor";
+import { listEditions, repo } from "@/lib/data";
+import { TeamCatalog } from "./team-catalog";
 
-export default async function AdminTimesPage({ searchParams }: { searchParams: Promise<{ edicao?: string }> }) {
-  const bundle = await adminBundle((await searchParams).edicao);
-  if (!bundle) return <EmptyState title="Nenhuma edição cadastrada" />;
-  const withCrest = bundle.teams.filter((t) => t.crestUrl).length;
+/** Cadastro geral de times: cada time pode estar em várias edições, ou em nenhuma. */
+export default async function AdminTimesPage() {
+  const [teams, editions] = await Promise.all([repo().listTeams(), listEditions()]);
+  const editionName = new Map(editions.map((e) => [e.id, e]));
+  const withCrest = teams.filter((t) => t.crestUrl).length;
 
   return (
     <div className="space-y-4">
-      <EditionHeader edition={bundle.edition} title="Times e escudos" />
-      <p className="text-sm text-muted">
-        {withCrest} de {bundle.teams.length} times com escudo. O escudo e os dados de um time valem para
-        <strong> todas as edições</strong> em que ele aparece. Sem imagem, o site mostra um escudo desenhado com a
-        sigla e as cores.
-      </p>
-      {bundle.teams.length === 0 ? (
-        <EmptyState title="Esta edição ainda não tem times">Defina os níveis na aba Edições.</EmptyState>
-      ) : (
-        tiersOf(bundle).map((tier) => (
-          <section key={tier}>
-            <h2 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">Nível {tier}</h2>
-            <div className="grid items-start gap-2 md:grid-cols-2">
-              {bundle.teams
-                .filter((t) => t.tier === tier)
-                .map((t) => (
-                  <TeamEditor
-                    key={t.id}
-                    team={{
-                      id: t.id,
-                      name: t.name,
-                      shortName: t.shortName,
-                      code: t.code,
-                      color: t.color,
-                      color2: t.color2,
-                      crestUrl: t.crestUrl,
-                    }}
-                  />
-                ))}
-            </div>
-          </section>
-        ))
-      )}
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Times</h1>
+        <p className="text-sm text-muted">
+          Cadastro geral de times, usado por todas as edições: atuais, futuras e antigas. Os times de cada edição são
+          escolhidos daqui, na aba Edições. {withCrest} de {teams.length} times têm escudo; sem imagem, o site mostra um
+          escudo desenhado com a sigla e as cores.
+        </p>
+      </div>
+      <TeamCatalog
+        editions={[...editions]
+          .sort((a, b) => b.season - a.season || a.name.localeCompare(b.name))
+          .map((e) => ({ id: e.id, name: e.name }))}
+        teams={teams.map((t) => ({
+          id: t.id,
+          name: t.name,
+          shortName: t.shortName,
+          code: t.code,
+          color: t.color,
+          color2: t.color2,
+          crestUrl: t.crestUrl,
+          editions: t.editions
+            .map((e) => ({ editionId: e.editionId, tier: e.tier, edition: editionName.get(e.editionId) }))
+            .filter((e) => e.edition)
+            .sort((a, b) => b.edition!.season - a.edition!.season)
+            .map((e) => ({ editionId: e.editionId, name: e.edition!.name, tier: e.tier })),
+        }))}
+      />
     </div>
   );
 }

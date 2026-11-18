@@ -94,7 +94,10 @@ export function ImportHistoryForm() {
         <div className="space-y-4">
           <section className="card space-y-2 p-4">
             <label className="label" htmlFor="h-tiers">1. Níveis e times</label>
-            <p className="text-sm text-muted">Uma linha por nível, com os times separados por vírgula.</p>
+            <p className="text-sm text-muted">
+              Uma linha por nível, com os times separados por vírgula. Times já cadastrados são reconhecidos pelo nome,
+              nome curto ou sigla; os que faltarem são cadastrados ao gravar.
+            </p>
             <pre className="overflow-x-auto rounded-xl bg-bg p-3 text-[11px] leading-relaxed">{TIERS_EXAMPLE}</pre>
             <textarea
               id="h-tiers"
@@ -175,6 +178,12 @@ export function ImportHistoryForm() {
               <strong>Atenção:</strong> {w}
             </p>
           ))}
+          {result.summary.newTeams.length > 0 && (
+            <p>
+              <strong>Times novos, que serão cadastrados:</strong> {result.summary.newTeams.join(", ")}.
+              <span className="text-muted"> Se algum já existe no cadastro com outro nome, corrija nos níveis antes de gravar.</span>
+            </p>
+          )}
           {result.summary.newParticipants.length > 0 && (
             <p>
               <strong>Participantes novos, que serão cadastrados:</strong> {result.summary.newParticipants.join(", ")}.

@@ -6,18 +6,22 @@ import { EDITION_STATUS_LABEL, type EditionStatus } from "@/lib/data/types";
 import { describeRules } from "@/lib/scoring/describe";
 import { parseRules } from "@/lib/scoring/schema";
 import { saveEdition, type ActionResult, type EditionForm as FormData } from "../../actions";
+import { TierEditor, type CatalogOption } from "./tier-editor";
 
 export function EditionForm({
   editionId,
   initial,
   locked,
   periods,
+  catalog,
 }: {
   editionId: string;
   initial: FormData;
   /** true quando já há jogos ou palpites: os níveis não podem mais mudar. */
   locked: boolean;
   periods: { id: string; name: string }[];
+  /** Cadastro geral de times, para escolher os de cada nível. */
+  catalog: CatalogOption[];
 }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
@@ -110,19 +114,8 @@ export function EditionForm({
       </section>
 
       <section className="card space-y-2 p-4">
-        <label className="label" htmlFor="ed-tiers">Níveis e times</label>
-        <textarea
-          id="ed-tiers"
-          className="input min-h-56 py-2 font-mono text-xs"
-          value={form.tiersText}
-          onChange={(e) => set("tiersText", e.target.value)}
-          readOnly={locked}
-        />
-        <p className="text-xs text-muted">
-          {locked
-            ? "Esta edição já tem jogos ou palpites, então os níveis estão travados."
-            : "Uma linha por nível: “1: Flamengo, Palmeiras”. Times novos são criados automaticamente."}
-        </p>
+        <p className="label">Níveis e times</p>
+        <TierEditor catalog={catalog} value={form.tiers} onChange={(tiers) => set("tiers", tiers)} locked={locked} />
       </section>
 
       </div>
