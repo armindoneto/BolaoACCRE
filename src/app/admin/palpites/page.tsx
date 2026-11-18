@@ -14,8 +14,9 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
   const teams = teamMap(bundle);
   const tiers = tiersOf(bundle);
   const participants = (await repo().listParticipants()).map((p) => ({ id: p.id, name: p.name }));
-  const keyCount = new Map<string, number>();
-  for (const e of bundle.entries) keyCount.set(e.selectionKey, (keyCount.get(e.selectionKey) ?? 0) + 1);
+  // Palpites com exatamente os mesmos times, agrupados pela chave dos times escolhidos.
+  const sameTeams = new Map<string, string[]>();
+  for (const e of bundle.entries) sameTeams.set(e.selectionKey, [...(sameTeams.get(e.selectionKey) ?? []), e.name]);
   // Primeiro os que aguardam revisão (sem participante), depois em ordem alfabética.
   const entries = [...bundle.entries].sort(
     (a, b) =>
@@ -65,7 +66,9 @@ export default async function AdminPalpitesPage({ searchParams }: { searchParams
                 editionId={edition.id}
                 entry={{ id: entry.id, name: entry.name, participantId: entry.participantId }}
                 participants={participants}
-                repeated={(keyCount.get(entry.selectionKey) ?? 0) > 1}
+                repeatedWith={(sameTeams.get(entry.selectionKey) ?? [])
+                  .filter((name) => name !== entry.name)
+                  .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }))}
                 badges={tiers.flatMap((tier) => {
                   const team = teams.get(entry.picks[tier]);
                   return team ? [toBadge(team)] : [];
