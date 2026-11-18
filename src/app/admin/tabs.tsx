@@ -17,7 +17,7 @@ export function AdminTabs() {
   const pathname = usePathname();
   const edicao = useSearchParams().get("edicao");
   return (
-    <nav className="no-print flex overflow-x-auto rounded-xl border border-border bg-card p-1 lg:max-w-3xl">
+    <nav className="no-print flex overflow-x-auto rounded-xl border border-border bg-card p-1">
       {TABS.map((tab) => {
         const active = pathname.startsWith(tab.href);
         return (

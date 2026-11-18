@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, History, ListOrdered, Shield, Users } from "lucide-react";
+import { BookOpen, CalendarDays, History, ListOrdered, Shield, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
@@ -10,6 +10,8 @@ const TABS = [
   { href: "/participantes", label: "Participantes", icon: Users, match: (p: string) => p.startsWith("/participante") },
   { href: "/times", label: "Times", icon: Shield, match: (p: string) => p.startsWith("/times") },
   { href: "/campeonato", label: "Campeonato", icon: CalendarDays, match: (p: string) => p.startsWith("/campeonato") },
+  // Só no menu do topo (computador): no celular a barra de baixo fica com 5 abas.
+  { href: "/regras", label: "Regras", icon: BookOpen, match: (p: string) => p.startsWith("/regras"), desktopOnly: true },
   { href: "/historico", label: "Histórico", icon: History, match: (p: string) => p.startsWith("/historico") },
 ];
 
@@ -25,7 +27,7 @@ export function BottomNav({ entriesOpen = false }: { entriesOpen?: boolean }) {
   return (
     <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
       <ul className="mx-auto grid max-w-3xl grid-cols-5">
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => !("desktopOnly" in tab)).map((tab) => {
           const active = tab.match(pathname);
           return (
             <li key={tab.href}>
